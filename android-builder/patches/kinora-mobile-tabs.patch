@@ -1,0 +1,329 @@
+diff --git a/crates/ui-egui/src/dock_ui.rs b/crates/ui-egui/src/dock_ui.rs
+index a92d376e..e7248d41 100644
+--- a/crates/ui-egui/src/dock_ui.rs
++++ b/crates/ui-egui/src/dock_ui.rs
+@@ -16,6 +16,16 @@ fn drag_id() -> egui::Id {
+     egui::Id::new("dock-tab-drag")
+ }
+ 
++pub(crate) const MOBILE_LAYOUT_BREAKPOINT: f32 = 760.0;
++pub(crate) const MOBILE_TAB_BAR_HEIGHT: f32 = 56.0;
++const MOBILE_PRIMARY_TABS: [(PanelKind, &str); 5] = [
++    (PanelKind::Composition, "Comp"),
++    (PanelKind::Project, "Project"),
++    (PanelKind::Timeline, "Timeline"),
++    (PanelKind::Properties, "Props"),
++    (PanelKind::Preview, "Preview"),
++];
++
+ impl EffectcraftApp {
+     pub(crate) fn dock_command(&mut self, ctx: &egui::Context, action: Action<PanelKind>) -> Result<(), String> {
+         let value = serde_json::to_value(action).map_err(|error| error.to_string())?;
+@@ -183,6 +193,45 @@ impl EffectcraftApp {
+         }
+     }
+ 
++    /// A narrow window shows one full-size panel at a time. The saved desktop dock and floating
++    /// groups remain untouched, so resizing back restores the user's workspace exactly.
++    fn mobile_area(&mut self, ui: &mut egui::Ui, body: Rect) {
++        let nav_h = MOBILE_TAB_BAR_HEIGHT.min(body.height());
++        let nav_rect = Rect::from_min_max(pos2(body.min.x, body.max.y - nav_h), body.max);
++        let panel_rect = Rect::from_min_max(body.min, pos2(body.max.x, nav_rect.min.y));
++        let mut active = self.mobile_panel;
++        let mut chosen = None;
++
++        let t = self.tokens;
++        ui.painter().rect_filled(nav_rect, 0.0, t.header_bg);
++        ui.painter().line_segment([nav_rect.left_top(), nav_rect.right_top()], Stroke::new(1.0, t.separator));
++        let mut nav = ui.new_child(egui::UiBuilder::new().max_rect(nav_rect).id_salt("mobile-panel-tabs"));
++        nav.set_clip_rect(nav_rect.intersect(ui.clip_rect()));
++
++        let margin = 4.0;
++        let gap = 2.0;
++        let available = (nav_rect.width() - margin * 2.0).max(0.0);
++        let tab_w = ((available - gap * (MOBILE_PRIMARY_TABS.len() - 1) as f32) / MOBILE_PRIMARY_TABS.len() as f32).max(0.0);
++        let mut x = nav_rect.min.x + margin;
++        for (panel, label) in MOBILE_PRIMARY_TABS {
++            let rect = Rect::from_min_size(pos2(x, nav_rect.min.y + 4.0), vec2(tab_w, (nav_h - 8.0).max(0.0)));
++            let response = nav.put(rect, egui::Button::selectable(active == panel, label)).on_hover_text(panel.title());
++            self.auto.add_response(&format!("mobile.tab.{}", panel.id()), &response, panel.title());
++            if response.clicked() {
++                chosen = Some(panel);
++            }
++            x += tab_w + gap;
++        }
++
++        if let Some(panel) = chosen {
++            active = panel;
++            self.mobile_panel = panel;
++            self.ui.focused = panel;
++        }
++        self.dock_rects = vec![(active, panel_rect)];
++        self.panel_body(ui, active, panel_rect);
++    }
++
+     pub(crate) fn dock_area(&mut self, ui: &mut egui::Ui, body: Rect) {
+         let t = self.tokens;
+         let ctx = ui.ctx().clone();
+@@ -193,6 +242,11 @@ impl EffectcraftApp {
+             panels::home::show(self, &mut child, body);
+             return;
+         }
++        if body.width() < MOBILE_LAYOUT_BREAKPOINT {
++            self.mobile_area(ui, body);
++            return;
++        }
++        self.mobile_panel = self.ui.focused;
+         // The maximized panel fills the area; the tree is kept as it is.
+         let maximized = self.ui.maximized.filter(|m| self.ui.dock.contains(*m));
+         let mut dock = match maximized {
+diff --git a/crates/ui-egui/src/header.rs b/crates/ui-egui/src/header.rs
+index fb381cfd..8cc5215f 100644
+--- a/crates/ui-egui/src/header.rs
++++ b/crates/ui-egui/src/header.rs
+@@ -15,6 +15,47 @@ use effectcraft_engine::commands::shape_tool::{PaintKind, ToolPaint};
+ use effectcraft_engine::project::{LayerId, LayerSource, PropGroup};
+ use effectcraft_engine::viewer as vw;
+ 
++/// Compact controls for narrow windows; the full desktop toolbar remains unchanged at wide sizes.
++pub fn show_mobile(app: &mut EffectcraftApp, ui: &mut egui::Ui, rect: Rect) {
++    let t = app.tokens;
++    ui.painter().rect_filled(rect, 0.0, t.header_bg);
++    ui.painter().line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, t.app_bg));
++    let mut row = ui.new_child(
++        egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 2.0))).layout(egui::Layout::left_to_right(egui::Align::Center)).id_salt("mobile-header"),
++    );
++    row.set_clip_rect(rect.intersect(ui.clip_rect()));
++
++    let menu = row.menu_button("Menu", |ui| {
++        ui.set_min_width(200.0);
++        crate::menus::mobile_menu_items(app, ui);
++    });
++    app.auto.add_response("mobile.menu", &menu.response, "Application menu");
++
++    let home = row.button("Home");
++    app.auto.add_response("mobile.home", &home, "Home");
++    if home.clicked() {
++        app.ui.start_screen = !app.ui.start_screen;
++    }
++
++    row.add_space(4.0);
++    let tool = app.ui.tool;
++    let tool_label = tool.label();
++    let picker = row.menu_button(tool_label, |ui| {
++        ui.set_min_width(200.0);
++        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
++            for tool in Tool::ALL {
++                let choice = ui.selectable_label(app.ui.tool == tool, tool.label());
++                app.auto.add_response(&format!("mobile.tool.{tool:?}"), &choice, tool.label());
++                if choice.clicked() {
++                    app.ui.tool = tool;
++                    ui.close();
++                }
++            }
++        });
++    });
++    app.auto.add_response("mobile.tool", &picker.response, tool_label);
++}
++
+ pub fn show(app: &mut EffectcraftApp, ui: &mut egui::Ui, rect: Rect) {
+     let t = app.tokens;
+     let p = ui.painter().clone();
+diff --git a/crates/ui-egui/src/lib.rs b/crates/ui-egui/src/lib.rs
+index 72016cc5..f08ae66d 100644
+--- a/crates/ui-egui/src/lib.rs
++++ b/crates/ui-egui/src/lib.rs
+@@ -262,6 +262,8 @@ impl Playback {
+ pub struct EffectcraftApp {
+     pub session: Session,
+     pub ui: UiState,
++    /// The panel shown by the narrow-screen tab layout; deliberately separate from the saved dock.
++    pub(crate) mobile_panel: PanelKind,
+     workspace_store: workspace_state::WorkspaceStore,
+     pub tokens: Tokens,
+     pub auto: automation::Registry,
+@@ -369,9 +371,11 @@ impl EffectcraftApp {
+     pub fn new(session: Session) -> Self {
+         let mut ui = UiState::default();
+         let workspace_store = workspace_state::WorkspaceStore::load(session.config.as_deref(), &mut ui);
++        let mobile_panel = ui.focused;
+         EffectcraftApp {
+             session,
+             ui,
++            mobile_panel,
+             workspace_store,
+             tokens: Tokens::for_kind(Default::default()),
+             auto: Default::default(),
+@@ -599,6 +603,7 @@ impl EffectcraftApp {
+         }
+         self.raise_panel(p);
+         self.ui.focused = p;
++        self.mobile_panel = p;
+     }
+ 
+     /// Bring panel `p` to the front of its group, opening it in its usual place if it is closed,
+@@ -1682,21 +1687,26 @@ impl EffectcraftApp {
+         }
+         let t = self.tokens;
+         let full = ui.max_rect();
++        let mobile_layout = full.width() - 8.0 < dock_ui::MOBILE_LAYOUT_BREAKPOINT;
+         if self.dialog.is_some() {
+             ui.disable();
+         }
+         ui.painter().rect_filled(full, 0.0, t.app_bg);
+         let mut top = full.min.y;
+-        if self.ui.show_menu_bar {
++        if self.ui.show_menu_bar && !mobile_layout {
+             let mb = egui::Rect::from_min_size(full.min, egui::vec2(full.width(), 24.0));
+             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(mb));
+             child.painter().rect_filled(mb, 0.0, t.header_bg);
+             menus::menu_bar(self, &mut child);
+             top = mb.max.y;
+         }
+-        let header_h = 40.0;
++        let header_h = if mobile_layout { 44.0 } else { 40.0 };
+         let header = egui::Rect::from_min_size(egui::pos2(full.min.x, top), egui::vec2(full.width(), header_h));
+-        header::show(self, ui, header);
++        if mobile_layout {
++            header::show_mobile(self, ui, header);
++        } else {
++            header::show(self, ui, header);
++        }
+         let body = egui::Rect::from_min_max(egui::pos2(full.min.x + 4.0, header.max.y + 2.0), egui::pos2(full.max.x - 4.0, full.max.y - 4.0));
+         self.dock_area(ui, body);
+         #[cfg(not(target_arch = "wasm32"))]
+@@ -1711,7 +1721,7 @@ impl EffectcraftApp {
+         panels::scriptui_view::show_windows(self, &ctx);
+         panels::learn::coach(self, &ctx);
+         let lift = panels::media_panels::import_card(self, ui, full);
+-        self.draw_toast(ui, full, lift);
++        self.draw_toast(ui, full, lift + if mobile_layout { dock_ui::MOBILE_TAB_BAR_HEIGHT } else { 0.0 });
+         if self.session.config.is_some() && self.workspace_store.has_changes(&self.ui) && !ctx.input(|i| i.pointer.any_down()) {
+             if self.workspace_store.due(ctx.input(|i| i.time)) {
+                 self.save_workspace_state();
+diff --git a/crates/ui-egui/src/menus.rs b/crates/ui-egui/src/menus.rs
+index 92893dcb..03ae2e6f 100644
+--- a/crates/ui-egui/src/menus.rs
++++ b/crates/ui-egui/src/menus.rs
+@@ -2049,6 +2049,30 @@ pub fn menu_bar(app: &mut EffectcraftApp, ui: &mut egui::Ui) {
+     }
+ }
+ 
++/// The same application menus, nested under a compact phone-friendly menu button.
++pub(crate) fn mobile_menu_items(app: &mut EffectcraftApp, ui: &mut egui::Ui) {
++    let ctx = ui.ctx().clone();
++    let mut clicked: Option<(String, Value)> = None;
++    let mut nav = crate::menu_keys::Nav::default();
++    for node in effectcraft_engine::menus::menu_bar() {
++        if let MenuNode::Submenu { label, children } = node {
++            let display_label = crate::i18n::label(app, "", label);
++            let response = ui.menu_button(display_label, |ui| {
++                ui.set_min_width(if label == "Effect" { 200.0 } else { 280.0 });
++                crate::widgets::menu_scroll(ui, |ui| menu_nodes(app, ui, children, &mut clicked, &mut nav, 0));
++            });
++            nav.top(&response.response);
++            app.auto.add_response(&format!("mobile.menu.{label}"), &response.response, label);
++        }
++    }
++    crate::menu_keys::handle(&ctx, &nav);
++    if let Some((id, params)) = clicked.map(|(id, params)| menu_choice(app, id, params))
++        && let Err(error) = invoke(app, &ctx, &id, if params.is_null() { json!({}) } else { params })
++    {
++        app.ui.status = error;
++    }
++}
++
+ /// The entries of top-level menu `name` (the Effect menu is the Effect Controls panel's context
+ /// menu); returns the chosen command and its params.
+ pub(crate) fn menu_contents(app: &mut EffectcraftApp, ui: &mut egui::Ui, name: &str) -> Option<(String, Value)> {
+diff --git a/crates/ui-egui/tests/ui_mobile_layout.rs b/crates/ui-egui/tests/ui_mobile_layout.rs
+new file mode 100644
+index 00000000..f8536d9d
+--- /dev/null
++++ b/crates/ui-egui/tests/ui_mobile_layout.rs
+@@ -0,0 +1,85 @@
++use effectcraft_engine::Session;
++use effectcraft_ui_egui::EffectcraftApp;
++use egui::{Event, Pos2, Rect, pos2, vec2};
++use egui_kittest::Harness;
++
++fn rect(h: &Harness<'_, EffectcraftApp>, id: &str) -> Rect {
++    let element = h
++        .state()
++        .auto
++        .elements
++        .iter()
++        .chain(h.state().auto.previous.iter())
++        .find(|element| element.id == id)
++        .unwrap_or_else(|| panic!("no automated UI element {id}"))
++        .clone();
++    Rect::from_min_size(pos2(element.rect[0], element.rect[1]), vec2(element.rect[2], element.rect[3]))
++}
++
++fn click(h: &mut Harness<'_, EffectcraftApp>, at: Pos2) {
++    h.event(Event::PointerMoved(at));
++    h.step();
++    h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
++    h.step();
++    h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
++    h.run_steps(2);
++}
++
++#[test]
++fn narrow_window_uses_mobile_tabs_and_keeps_the_desktop_workspace_unchanged() {
++    let mut h = Harness::builder().with_size(vec2(390.0, 844.0)).build_eframe(|_| EffectcraftApp::new(Session::default()));
++    h.run_steps(3);
++    let dock_before = h.state().ui.dock.clone();
++    let floating_before = h.state().ui.floating.clone();
++
++    assert!(h.state().auto.find("mobile.menu").is_some());
++    assert!(h.state().auto.find("mobile.home").is_some());
++    assert!(h.state().auto.find("mobile.tool").is_some());
++    assert!(h.state().auto.find("menu.File").is_none());
++    assert!(h.state().auto.find("mobile.tab.Composition").is_some());
++    assert!(h.state().auto.find("mobile.tab.Project").is_some());
++    assert!(h.state().auto.find("panel.Composition").is_some());
++    assert!(h.state().auto.find("panel.Project").is_none());
++
++    let menu_button = rect(&h, "mobile.menu").center();
++    click(&mut h, menu_button);
++    assert!(h.state().auto.elements.iter().any(|element| element.id == "mobile.menu.File"));
++
++    let project_tab = rect(&h, "mobile.tab.Project").center();
++    click(&mut h, project_tab);
++    assert!(h.state().auto.find("panel.Project").is_some());
++    assert!(h.state().auto.find("panel.Composition").is_none());
++    assert_eq!(h.state().ui.focused, effectcraft_ui_egui::dock::PanelKind::Project);
++    assert_eq!(h.state().ui.dock, dock_before);
++    assert_eq!(h.state().ui.floating, floating_before);
++
++    assert!(h.state().auto.find("mobile.tab.Preview").is_some());
++    let preview_tab = rect(&h, "mobile.tab.Preview").center();
++    click(&mut h, preview_tab);
++    assert_eq!(h.state().ui.focused, effectcraft_ui_egui::dock::PanelKind::Preview);
++    assert!(h.state().auto.find("panel.Preview").is_some());
++    assert_eq!(h.state().ui.dock, dock_before);
++    assert_eq!(h.state().ui.floating, floating_before);
++
++    h.set_size(vec2(1280.0, 800.0));
++    h.run_steps(3);
++    assert!(h.state().auto.find("mobile.tab.Composition").is_none());
++    assert!(h.state().auto.find("panel.tab.Composition").is_some());
++    assert_eq!(h.state().ui.dock, dock_before);
++
++    h.set_size(vec2(390.0, 844.0));
++    h.run_steps(3);
++    assert!(h.state().auto.find("mobile.tab.Preview").is_some());
++    assert!(h.state().auto.find("panel.Preview").is_some());
++    assert_eq!(h.state().ui.dock, dock_before);
++}
++
++#[test]
++fn wide_window_keeps_the_desktop_dock_instead_of_mobile_tabs() {
++    let mut h = Harness::builder().with_size(vec2(1280.0, 800.0)).build_eframe(|_| EffectcraftApp::new(Session::default()));
++    h.run_steps(3);
++
++    assert!(h.state().auto.find("mobile.tab.Composition").is_none());
++    assert!(h.state().auto.find("panel.tab.Composition").is_some());
++    assert!(h.state().auto.find("panel.tab.Project").is_some());
++}

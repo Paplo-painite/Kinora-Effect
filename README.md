@@ -15,7 +15,11 @@ The builder stores its signing key locally at `android-builder/keys/kinora-effec
 
 ## Scope and status
 
-The application source is the [official EffectCraft repository](https://github.com/storytold/effectcraft), which is open source and still in alpha. Changes here cover the Android package, branding, build flow, and update checks. They do not claim to fix every upstream issue or rewrite the application's functionality. A successful build does not verify every feature on every device, so test the APK on a physical Android device.
+The application source is the [official EffectCraft repository](https://github.com/storytold/effectcraft), which is open source and still in alpha. Kinora applies a small set of Android-specific fixes and a narrow-screen layout patch at build time; it does not claim to fix every upstream issue or rewrite the application's functionality. A successful build does not verify every feature on every device, so test the APK on a physical Android device.
+
+## Phone layout
+
+When the available content width is below 760 egui points, Kinora switches to a compact header and one-panel-at-a-time tabs for Composition, Project, Timeline, Properties, and Preview. Other panels remain available through the application menu. The saved desktop dock and floating-panel layout are not overwritten; widening the app restores the original workspace.
 
 The app checks for new versions on the [Kinora Effect Releases](https://github.com/Paplo-painite/Kinora-Effect/releases) page. Updates will not be offered until releases with `vX.Y.Z` tags and compatible APK files are published there.
 

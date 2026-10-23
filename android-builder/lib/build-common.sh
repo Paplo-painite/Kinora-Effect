@@ -479,16 +479,26 @@ else
 fi
 
 if [[ "$APP" == "effectcraft" ]]; then
-    KINORA_PATCH="$ROOT/patches/kinora-new-comp-from-footage.patch"
-    [[ -s "$KINORA_PATCH" ]] || fail "Kinora's composition-from-footage patch is missing: $KINORA_PATCH"
-    if git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1; then
-        git -C "$SRC" apply "$KINORA_PATCH" || fail "Could not apply Kinora's composition-from-footage patch."
-        echo "Applied Kinora's composition-from-footage fix."
-    elif git -C "$SRC" apply --reverse --check "$KINORA_PATCH" >/dev/null 2>&1; then
-        echo "Kinora's composition-from-footage fix is already present."
-    else
-        fail "Kinora's composition-from-footage patch does not match this EffectCraft source revision; update the patch before building. No source files were changed."
-    fi
+    KINORA_PATCHES=(
+        "$ROOT/patches/kinora-new-comp-from-footage.patch"
+        "$ROOT/patches/kinora-mobile-tabs.patch"
+    )
+    # Validate every patch first, so a stale second patch cannot leave a half-patched checkout.
+    for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
+        [[ -s "$KINORA_PATCH" ]] || fail "Kinora patch is missing: $KINORA_PATCH"
+        if ! git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1 \
+            && ! git -C "$SRC" apply --reverse --check "$KINORA_PATCH" >/dev/null 2>&1; then
+            fail "Kinora patch ${KINORA_PATCH##*/} does not match this EffectCraft source revision; update the patch before building. No patches were applied."
+        fi
+    done
+    for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
+        if git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1; then
+            git -C "$SRC" apply "$KINORA_PATCH" || fail "Could not apply Kinora patch ${KINORA_PATCH##*/}."
+            echo "Applied Kinora patch: ${KINORA_PATCH##*/}"
+        else
+            echo "Kinora patch already present: ${KINORA_PATCH##*/}"
+        fi
+    done
 fi
 
 # Upstream `main` is normally green, but a regression can sit there for a while (the upstream
