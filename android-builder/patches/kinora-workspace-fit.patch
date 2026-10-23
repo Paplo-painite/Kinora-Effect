@@ -1,0 +1,188 @@
+diff --git a/crates/ui-egui/src/dock.rs b/crates/ui-egui/src/dock.rs
+index ae66eae..3875d5d 100644
+--- a/crates/ui-egui/src/dock.rs
++++ b/crates/ui-egui/src/dock.rs
+@@ -282,2 +282,3 @@ pub const WORKSPACES: &[&str] = &[
+     "Default",
++    "Kinora Fit",
+     "Standard",
+@@ -365,2 +366,11 @@ pub fn workspace(name: &str) -> DockNode {
+         ),
++        "Kinora Fit" => hsplit(
++            FixedB(155.0),
++            vsplit(
++                Ratio(0.62),
++                hsplit(FixedA(155.0), tabs(&[Project, EffectControls], 0), tabs(&[Composition, Layer], 0)),
++                tabs(&[Timeline, RenderQueue], 0),
++            ),
++            stack(&[(Preview, true, Some(46.0)), (Properties, true, None), (Align, false, None), (Audio, false, None), (EffectsPresets, false, None)]),
++        ),
+         "Minimal" => vsplit(Ratio(0.6), tabs(&[Composition], 0), tabs(&[Timeline], 0)),
+diff --git a/crates/ui-egui/src/header.rs b/crates/ui-egui/src/header.rs
+index fb381cf..5a2bac8 100644
+--- a/crates/ui-egui/src/header.rs
++++ b/crates/ui-egui/src/header.rs
+@@ -185,26 +185,29 @@ pub fn show(app: &mut EffectcraftApp, ui: &mut egui::Ui, rect: Rect) {
+     // Right side: community buttons, workspaces.
++    let compact_header = rect.width() < 1000.0;
+     let mut rx = rect.max.x - 10.0;
+-    // The pill fits its label (icon, gap, text) with even padding: it was a fixed 104 px with the
+-    // text at its left, which left a wide gap on the right (#581).
+-    let label = p.layout_no_wrap(tr("Discord").to_string(), Tokens::semibold(12.0), Color32::WHITE);
+-    let discord = Rect::from_min_max(pos2(rx - (10.0 + 14.0 + 6.0 + label.size().x + 12.0), cy - 13.0), pos2(rx, cy + 13.0));
+-    let dresp = ui.interact(discord, egui::Id::new("hdr-discord"), Sense::click());
+-    let dc = Color32::from_rgb(0x58, 0x65, 0xf2);
+-    p.rect_filled(discord, 13.0, if dresp.hovered() { dc.gamma_multiply(1.2) } else { dc });
+-    icons::paint(&p, Rect::from_center_size(pos2(discord.min.x + 17.0, cy), vec2(14.0, 14.0)), Icon::Chat, Color32::WHITE);
+-    p.galley(pos2(discord.min.x + 30.0, cy - label.size().y / 2.0), label, Color32::WHITE);
+-    app.auto.add("header.discord", discord, "Join the ArtCraft Discord");
+-    if dresp.on_hover_text(tr("Join the ArtCraft community on Discord")).clicked() {
+-        let _ = app.session.execute("help.discord", json!({}));
+-    }
+-    rx = discord.min.x - 6.0;
+-    for (id, icon, tip, cmd) in
+-        [("hdr-github", Icon::Code, "EffectCraft on GitHub", "help.github"), ("hdr-web", Icon::Globe, "EffectCraft on getartcraft.com", "help.appPage")]
+-    {
+-        let r = Rect::from_min_max(pos2(rx - 26.0, cy - 13.0), pos2(rx, cy + 13.0));
+-        if widgets::icon_button(ui, r, icon, false, &t, egui::Id::new(id)).on_hover_text(tip).clicked() {
+-            let _ = app.session.execute(cmd, json!({}));
++    if !compact_header {
++        // The pill fits its label (icon, gap, text) with even padding: it was a fixed 104 px with the
++        // text at its left, which left a wide gap on the right (#581).
++        let label = p.layout_no_wrap(tr("Discord").to_string(), Tokens::semibold(12.0), Color32::WHITE);
++        let discord = Rect::from_min_max(pos2(rx - (10.0 + 14.0 + 6.0 + label.size().x + 12.0), cy - 13.0), pos2(rx, cy + 13.0));
++        let dresp = ui.interact(discord, egui::Id::new("hdr-discord"), Sense::click());
++        let dc = Color32::from_rgb(0x58, 0x65, 0xf2);
++        p.rect_filled(discord, 13.0, if dresp.hovered() { dc.gamma_multiply(1.2) } else { dc });
++        icons::paint(&p, Rect::from_center_size(pos2(discord.min.x + 17.0, cy), vec2(14.0, 14.0)), Icon::Chat, Color32::WHITE);
++        p.galley(pos2(discord.min.x + 30.0, cy - label.size().y / 2.0), label, Color32::WHITE);
++        app.auto.add("header.discord", discord, "Join the ArtCraft Discord");
++        if dresp.on_hover_text(tr("Join the ArtCraft community on Discord")).clicked() {
++            let _ = app.session.execute("help.discord", json!({}));
++        }
++        rx = discord.min.x - 6.0;
++        for (id, icon, tip, cmd) in
++            [("hdr-github", Icon::Code, "EffectCraft on GitHub", "help.github"), ("hdr-web", Icon::Globe, "EffectCraft on getartcraft.com", "help.appPage")]
++        {
++            let r = Rect::from_min_max(pos2(rx - 26.0, cy - 13.0), pos2(rx, cy + 13.0));
++            if widgets::icon_button(ui, r, icon, false, &t, egui::Id::new(id)).on_hover_text(tip).clicked() {
++                let _ = app.session.execute(cmd, json!({}));
++            }
++            app.auto.add(&format!("header.{}", &id[4..]), r, tip);
++            rx = r.min.x - 4.0;
+         }
+-        app.auto.add(&format!("header.{}", &id[4..]), r, tip);
+-        rx = r.min.x - 4.0;
+     }
+@@ -249,2 +252,49 @@ pub fn show(app: &mut EffectcraftApp, ui: &mut egui::Ui, rect: Rect) {
+     rx = r.min.x - 4.0;
++    // Quick UI scaling controls stay visible on compact screens; workspace tabs below may collapse
++    // into the existing all-workspaces menu when horizontal space is limited.
++    let scale = app.session.prefs.appearance.ui_scale;
++    let scale_group_width = 20.0 + 30.0 + 20.0 + 34.0 + 18.0;
++    let scale_left = rx - scale_group_width;
++    let minus = Rect::from_min_size(pos2(scale_left, cy - 11.0), vec2(20.0, 22.0));
++    let minus_response = ui.interact(minus, egui::Id::new("header-ui-scale-decrease"), Sense::click()).on_hover_text(format!("Decrease UI Scale ({scale}%)"));
++    p.rect_filled(minus, 4.0, if minus_response.hovered() { t.hover } else { t.panel_bg });
++    p.text(minus.center(), Align2::CENTER_CENTER, "−", Tokens::ui(15.0), t.text);
++    app.auto.add_response("header.uiScale.decrease", &minus_response, "Decrease UI Scale");
++    if minus_response.clicked() {
++        if let Err(error) = app.set_pref("appearance.uiScale", json!(scale.saturating_sub(10).max(50))) {
++            app.ui.status = error;
++        } else {
++            app.apply_prefs(ui.ctx());
++        }
++    }
++    let percent = Rect::from_min_size(pos2(minus.max.x, cy - 11.0), vec2(30.0, 22.0));
++    p.text(percent.center(), Align2::CENTER_CENTER, format!("{scale}%"), Tokens::ui(11.0), t.text);
++    app.auto.add("header.uiScale.value", percent, &format!("UI Scale: {scale}%"));
++    let plus = Rect::from_min_size(pos2(percent.max.x, cy - 11.0), vec2(20.0, 22.0));
++    let plus_response = ui.interact(plus, egui::Id::new("header-ui-scale-increase"), Sense::click()).on_hover_text(format!("Increase UI Scale ({scale}%)"));
++    p.rect_filled(plus, 4.0, if plus_response.hovered() { t.hover } else { t.panel_bg });
++    p.text(plus.center(), Align2::CENTER_CENTER, "+", Tokens::ui(14.0), t.text);
++    app.auto.add_response("header.uiScale.increase", &plus_response, "Increase UI Scale");
++    if plus_response.clicked() {
++        if let Err(error) = app.set_pref("appearance.uiScale", scale.saturating_add(10).min(200)) {
++            app.ui.status = error;
++        } else {
++            app.apply_prefs(ui.ctx());
++        }
++    }
++    let fit = Rect::from_min_size(pos2(plus.max.x + 2.0, cy - 11.0), vec2(34.0, 22.0));
++    let fit_response = ui.interact(fit, egui::Id::new("header-ui-scale-fit"), Sense::click()).on_hover_text("Fit Workspace");
++    p.rect_filled(fit, 4.0, if fit_response.hovered() { t.hover } else { t.panel_bg });
++    p.text(fit.center(), Align2::CENTER_CENTER, "Fit", Tokens::ui(11.0), t.text);
++    app.auto.add_response("header.uiScale.fitWorkspace", &fit_response, "Fit Workspace");
++    if fit_response.clicked() {
++        let width = ui.ctx().content_rect().width().max(1.0);
++        let fitted_scale = (width / 9.0).round().clamp(50.0, 100.0) as u32;
++        if let Err(error) = app.set_pref("appearance.uiScale", json!(fitted_scale)) {
++            app.ui.status = error;
++        }
++        app.set_workspace("Kinora Fit");
++        app.apply_prefs(ui.ctx());
++    }
++    rx = scale_left - 8.0;
+     rx -= 10.0;
+diff --git a/crates/ui-egui/tests/ui_kinora_fit.rs b/crates/ui-egui/tests/ui_kinora_fit.rs
+new file mode 100644
+index 0000000..6d37e17
+--- /dev/null
++++ b/crates/ui-egui/tests/ui_kinora_fit.rs
+@@ -0,0 +1,56 @@
++use effectcraft_engine::Session;
++use effectcraft_ui_egui::{EffectcraftApp, dock::PanelKind};
++use egui::{Event, Pos2, pos2};
++use egui_kittest::Harness;
++
++fn harness(width: f32) -> Harness<'static, EffectcraftApp> {
++    let mut h = Harness::builder().with_size(egui::vec2(width, 480.0)).build_eframe(|_| EffectcraftApp::new(Session::default()));
++    h.run_steps(3);
++    h
++}
++
++fn click(h: &mut Harness<'_, EffectcraftApp>, id: &str) {
++    let e = h.state().auto.find(id).unwrap_or_else(|| panic!("missing {id}")).clone();
++    let at: Pos2 = pos2(e.rect[0] + e.rect[2] / 2.0, e.rect[1] + e.rect[3] / 2.0);
++    h.input_mut().events.push(Event::PointerMoved(at));
++    h.input_mut().events.push(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
++    h.step();
++    h.input_mut().events.push(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
++    h.run_steps(2);
++}
++
++#[test]
++fn header_quick_controls_change_and_fit_ui_scale_and_workspace() {
++    let mut h = harness(720.0);
++    assert!(h.state().auto.find("header.uiScale.decrease").is_some());
++    assert!(h.state().auto.find("header.uiScale.increase").is_some());
++    assert!(h.state().auto.find("header.uiScale.fitWorkspace").is_some());
++
++    click(&mut h, "header.uiScale.decrease");
++    assert_eq!(h.state().session.prefs.appearance.ui_scale, 90);
++    assert_eq!(h.ctx.zoom_factor(), 0.9);
++
++    click(&mut h, "header.uiScale.increase");
++    assert_eq!(h.state().session.prefs.appearance.ui_scale, 100);
++
++    click(&mut h, "header.uiScale.fitWorkspace");
++    let expected = (720.0_f32 / 9.0).round().clamp(50.0, 100.0) as u32;
++    assert_eq!(h.state().session.prefs.appearance.ui_scale, expected);
++    assert!((h.ctx.zoom_factor() - expected as f32 / 100.0).abs() < 0.001);
++    assert_eq!(h.state().ui.workspace, "Kinora Fit");
++    assert!(h.state().ui.dock.contains(PanelKind::Project));
++    assert!(h.state().ui.dock.contains(PanelKind::Composition));
++    assert!(h.state().ui.dock.contains(PanelKind::Timeline));
++    assert!(h.state().ui.dock.contains(PanelKind::Preview));
++}
++
++#[test]
++fn fit_workspace_never_scales_beyond_supported_limits() {
++    let mut small = harness(360.0);
++    click(&mut small, "header.uiScale.fitWorkspace");
++    assert_eq!(small.state().session.prefs.appearance.ui_scale, 50);
++
++    let mut large = harness(1800.0);
++    click(&mut large, "header.uiScale.fitWorkspace");
++    assert_eq!(large.state().session.prefs.appearance.ui_scale, 100);
++}

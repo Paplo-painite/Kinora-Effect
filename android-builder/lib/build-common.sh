@@ -482,8 +482,9 @@ if [[ "$APP" == "effectcraft" ]]; then
     KINORA_PATCHES=(
         "$ROOT/patches/kinora-new-comp-from-footage.patch"
         "$ROOT/patches/kinora-desktop-fixed.patch"
+        "$ROOT/patches/kinora-workspace-fit.patch"
     )
-    # Validate every patch first, so a stale second patch cannot leave a half-patched checkout.
+    # Validate every patch first, so a stale patch cannot leave a half-patched checkout.
     for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
         [[ -s "$KINORA_PATCH" ]] || fail "Kinora patch is missing: $KINORA_PATCH"
         if ! git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1 \

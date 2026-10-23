@@ -19,6 +19,8 @@ On Android, Kinora Effect keeps the desktop workspace layout: the desktop menu b
 
 Adjust the app's interface size at **Settings > Appearance > UI Scale**. The setting is available from 50% to 200%, is saved as an app preference, and changes the interface scale without changing the phone's system DPI. Lower values fit more of the desktop workspace on the phone; higher values make controls larger.
 
+The desktop toolbar also provides **−** and **+** controls to decrease or increase UI Scale in 10% steps. **Fit** chooses a scale based on the available screen width and switches to the **Kinora Fit** workspace, which keeps the desktop panels while reserving more center width for Composition. Select another workspace, such as **Default**, to return to its layout.
+
 ## Scope and status
 
 The application source is the [official EffectCraft repository](https://github.com/storytold/effectcraft), which is open source and still in alpha. Kinora applies Android-specific compatibility fixes and preserves the desktop workspace on Android; it does not add Adobe After Effects features or claim to fix every upstream issue. A successful build does not verify every feature on every device, so test the APK on a physical Android device.
