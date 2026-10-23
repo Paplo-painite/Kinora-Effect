@@ -1,0 +1,8 @@
+asset:        kinora-icon.png
+title:        Kinora Effect Android launcher icon
+author:       Original AI-generated artwork prepared for Kinora Effect
+source:       Original artwork generated for this repository on 2026-10-23
+license:      MIT
+license-file: ../LICENSE
+added:        2026-10-23 by Kinora Effect contributors
+notes:        Derived from an original square concept; resized to 512x512 for the Android builder. No ArtCraft or EffectCraft logo was used.
