@@ -481,7 +481,7 @@ fi
 if [[ "$APP" == "effectcraft" ]]; then
     KINORA_PATCHES=(
         "$ROOT/patches/kinora-new-comp-from-footage.patch"
-        "$ROOT/patches/kinora-mobile-tabs.patch"
+        "$ROOT/patches/kinora-desktop-fixed.patch"
     )
     # Validate every patch first, so a stale second patch cannot leave a half-patched checkout.
     for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
@@ -2538,6 +2538,7 @@ try:
     io_dep = 'cadcraft-io = { path = "../../crates/io" }\n' if app == "cadcraft" else ''
     java_sources = 'java_sources = "java"\n' if saf else ''
     config_changes = "orientation|keyboard|keyboardHidden|navigation|screenSize|screenLayout|smallestScreenSize|density|layoutDirection|uiMode|fontScale|locale"
+    app_orientation = "landscape" if app == "effectcraft" else "sensor"
     # Android open/share associations for the app's document types (the MAIN/LAUNCHER entry is always
     # first). Shared with the adapter launchers; see lib/file_associations.py.
     intent_filter_value = file_associations.intent_filter_toml(app)
@@ -2547,7 +2548,7 @@ name = ".{saf['activity']}"
 config_changes = "{config_changes}"
 label = "{title}"
 launch_mode = "singleTask"
-orientation = "sensor"
+orientation = "{app_orientation}"
 exported = true
 # The MAIN/LAUNCHER filter that gives the APK a launcher icon; the remaining filters register
 # the app for its document types so the system can open and share them with it. Keep it inline:
@@ -2563,7 +2564,7 @@ value = "{app}_android"
 config_changes = "{config_changes}"
 label = "{title}"
 launch_mode = "singleTask"
-orientation = "sensor"
+orientation = "{app_orientation}"
 exported = true
 intent_filter = {intent_filter_value}
 '''
@@ -3619,7 +3620,7 @@ print(f"  Engine crate: {engine_pkg}")
 print(f"  UI crate: {ui_pkg}")
 print(f"  UI app type: {app_type}")
 print(f"  Icon: {icon.relative_to(src) if icon.is_relative_to(src) else icon}")
-print("  Orientation: sensor (allows portrait and landscape rotation)")
+print(f"  Orientation: {app_orientation}" + (" (fixed for EffectCraft)" if app == "effectcraft" else " (allows portrait and landscape rotation)"))
 PY
 fi
 

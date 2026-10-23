@@ -1,0 +1,95 @@
+diff --git a/crates/engine/src/prefs.rs b/crates/engine/src/prefs.rs
+index a2ce579e..e1e8c200 100644
+--- a/crates/engine/src/prefs.rs
++++ b/crates/engine/src/prefs.rs
+@@ -637,7 +637,7 @@ impl Prefs {
+             _ => {}
+         }
+         self.appearance.brightness = self.appearance.brightness.clamp(-1.0, 1.0);
+-        self.appearance.ui_scale = self.appearance.ui_scale.clamp(75, 200);
++        self.appearance.ui_scale = self.appearance.ui_scale.clamp(50, 200);
+         let defaults = default_labels();
+         self.labels.truncate(defaults.len());
+         for d in defaults.iter().skip(self.labels.len()) {
+@@ -1261,7 +1261,7 @@ pub fn pages() -> Vec<Page> {
+                 s("appearance.lightTheme", "Light Theme", Kind::Choice(LIGHT_THEMES), true),
+                 s("appearance.darkTheme", "Dark Theme", Kind::Choice(DARK_THEMES), true),
+                 s("appearance.brightness", "Brightness", Kind::Slider(-1.0, 1.0), true),
+-                s("appearance.uiScale", "UI Scale", Kind::Int(75, 200, "%"), true),
++                s("appearance.uiScale", "UI Scale", Kind::Int(50, 200, "%"), true),
+                 Section("Labels and Colors"),
+                 s("appearance.useLabelColorForHandles", "Use Label Color for Layer Handles and Paths", B, true),
+                 s("appearance.useLabelColorForTabs", "Use Label Color for Related Tabs", B, true),
+diff --git a/crates/engine/src/tests_settings.rs b/crates/engine/src/tests_settings.rs
+index a4f4d89e..b9fe52e9 100644
+--- a/crates/engine/src/tests_settings.rs
++++ b/crates/engine/src/tests_settings.rs
+@@ -87,10 +87,10 @@ fn prefs_set_validates_keys_types_and_ranges() {
+     assert!(p.reset(Some("bogus")).is_err());
+ }
+ 
+-/// Settings ▸ Appearance ▸ UI Scale (#284): a percentage, 100 by default, kept within 75–200;
++/// Settings ▸ Appearance ▸ UI Scale: a percentage, 100 by default, kept within 50–200;
+ /// the dialog types or drags any whole percentage in that range (#682).
+ #[test]
+-fn ui_scale_is_a_percentage_from_75_to_200() {
++fn ui_scale_is_a_percentage_from_50_to_200() {
+     let mut p = Prefs::default();
+     assert_eq!(p.appearance.ui_scale, 100);
+     p.set("appearance.uiScale", json!("150")).unwrap();
+@@ -98,10 +98,12 @@ fn ui_scale_is_a_percentage_from_75_to_200() {
+     assert_eq!(p.get("appearance.uiScale"), Some(json!(150)));
+     p.set("appearance.uiScale", json!(500)).unwrap();
+     assert_eq!(p.appearance.ui_scale, 200);
++    p.set("appearance.uiScale", json!(50)).unwrap();
++    assert_eq!(p.appearance.ui_scale, 50);
+     p.set("appearance.uiScale", json!(10)).unwrap();
+-    assert_eq!(p.appearance.ui_scale, 75);
++    assert_eq!(p.appearance.ui_scale, 50);
+     let page = crate::prefs::pages().into_iter().find(|pg| pg.id == "appearance").unwrap();
+-    let field = crate::prefs::Item::Setting { key: "appearance.uiScale", label: "UI Scale", kind: crate::prefs::Kind::Int(75, 200, "%"), live: true };
++    let field = crate::prefs::Item::Setting { key: "appearance.uiScale", label: "UI Scale", kind: crate::prefs::Kind::Int(50, 200, "%"), live: true };
+     assert!(page.items.contains(&field), "Settings ▸ Appearance offers it");
+     // Older settings files without it get the default.
+     assert_eq!(Prefs::from_json(r#"{"version": 2, "appearance": {"theme": "light"}}"#).appearance.ui_scale, 100);
+diff --git a/crates/ui-egui/tests/ui_desktop_fixed.rs b/crates/ui-egui/tests/ui_desktop_fixed.rs
+new file mode 100644
+index 00000000..586f3b40
+--- /dev/null
++++ b/crates/ui-egui/tests/ui_desktop_fixed.rs
+@@ -0,0 +1,35 @@
++use effectcraft_engine::Session;
++use effectcraft_ui_egui::EffectcraftApp;
++use egui::vec2;
++use egui_kittest::Harness;
++
++fn assert_desktop_layout(h: &Harness<'_, EffectcraftApp>) {
++    assert!(h.state().auto.find("mobile.menu").is_none());
++    assert!(h.state().auto.find("mobile.tool").is_none());
++    assert!(h.state().auto.find("mobile.tab.Composition").is_none());
++    assert!(h.state().auto.find("header.home").is_some());
++    assert!(h.state().auto.find("panel.tab.Composition").is_some());
++    assert!(h.state().auto.find("panel.tab.Project").is_some());
++}
++
++#[test]
++fn landscape_phone_keeps_desktop_header_and_dock() {
++    let mut h = Harness::builder().with_size(vec2(960.0, 480.0)).build_eframe(|_| EffectcraftApp::new(Session::default()));
++    h.run_steps(3);
++    let dock = h.state().ui.dock.clone();
++    let floating = h.state().ui.floating.clone();
++    assert_desktop_layout(&h);
++
++    h.set_size(vec2(1280.0, 800.0));
++    h.run_steps(3);
++    assert_desktop_layout(&h);
++    assert_eq!(h.state().ui.dock, dock);
++    assert_eq!(h.state().ui.floating, floating);
++}
++
++#[test]
++fn compact_window_does_not_switch_to_mobile_tabs() {
++    let mut h = Harness::builder().with_size(vec2(390.0, 844.0)).build_eframe(|_| EffectcraftApp::new(Session::default()));
++    h.run_steps(3);
++    assert_desktop_layout(&h);
++}
