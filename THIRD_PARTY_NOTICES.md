@@ -11,3 +11,7 @@ Build scripts fetch [storytold/effectcraft](https://github.com/storytold/effectc
 ## Bundled builder dependencies
 
 Licenses for vendored components under `android-builder/vendor/` remain alongside those components. The Android SDK, JDK, Rust crates, Gradle plugins, and upstream application dependencies are obtained as part of the build and remain subject to their respective licenses.
+
+## Kinora Effect launcher icon
+
+`assets/kinora-icon.png` is a user-supplied image included at the repository owner's request. It has been downscaled without creative edits. Its license was not separately specified, so no license grant is implied by its inclusion.

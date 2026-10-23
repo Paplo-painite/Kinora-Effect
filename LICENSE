@@ -23,3 +23,7 @@ SOFTWARE.
 Portions of the Android builder retain their original copyright and license
 notices in android-builder/LICENSE and related vendor directories. See
 THIRD_PARTY_NOTICES.md.
+
+The MIT license above does not apply to assets/kinora-icon.png. That image was
+supplied by the repository owner, and no separate license grant is implied by
+its inclusion in this repository.
