@@ -1,0 +1,132 @@
+diff --git a/crates/engine/src/commands/file.rs b/crates/engine/src/commands/file.rs
+index 8c4c384e..5d749996 100644
+--- a/crates/engine/src/commands/file.rs
++++ b/crates/engine/src/commands/file.rs
+@@ -183,6 +183,39 @@ fn finish_import(s: &mut Session, r: &mut Value, target: Option<ItemId>, p: &Val
+     {
+         e.extend(errors.into_iter().map(Value::from));
+     }
++    create_comp_from_imported_footage(s, r, p);
++}
++
++/// The empty Composition viewer asks the import job to create one composition after the footage
++/// has been added and selected. Kept here so the background import and its UI completion are one
++/// atomic workflow; ordinary File ▸ Import remains unchanged.
++fn create_comp_from_imported_footage(s: &mut Session, r: &mut Value, p: &Value) {
++    if b_p(p, "createCompFromFootage") != Some(true) || r["comps"].as_array().is_some_and(|comps| !comps.is_empty()) {
++        return;
++    }
++    let selected: Vec<ItemId> = r["items"]
++        .as_array()
++        .into_iter()
++        .flatten()
++        .filter_map(Value::as_u64)
++        .map(ItemId)
++        .filter(|id| s.project.item(*id).is_some_and(|item| matches!(&item.kind, ItemKind::Footage(f) if f.kind != FootageKind::Data)))
++        .collect();
++    if selected.is_empty() {
++        if let Some(errors) = r.get_mut("errors").and_then(Value::as_array_mut) {
++            errors.push(Value::from("No visual or audio footage was imported; no composition was created."));
++        }
++        return;
++    }
++    s.state.project_selection = selected;
++    match s.execute("file.newCompFromSelection", json!({"single": true})) {
++        Ok(composition) => r["composition"] = composition,
++        Err(error) => {
++            if let Some(errors) = r.get_mut("errors").and_then(Value::as_array_mut) {
++                errors.push(Value::from(format!("Composition creation failed: {error}")));
++            }
++        }
++    }
+ }
+ 
+ /// With `addToComp`, put what an import (its result `r`) made into `target`, the comp that was
+@@ -736,7 +769,7 @@ pub fn specs() -> Vec<CommandSpec> {
+             "File...",
+             ["File", "Import"],
+             Some("Cmd+I"),
+-            "{paths: [string] (files or folders), sequence?: bool (the Sequence checkbox: true imports numbered stills of one run as one image sequence, one picked file bringing its whole run and several picked files that range; default: a numbered still brings its run, except dropped files (drag), which import as stills as in After Effects; folders' runs import as sequences; false imports stills and a folder's files individually), alphabetical?: bool (Force Alphabetical Order: every image of that type in the folder, by name), frameRate?: fps (image sequences; default Settings ▸ Import ▸ Sequence Footage), importAs?: footage|composition|compositionLayerSizes (Photoshop, PDF, Illustrator and EPS files), layer?: name|index (footage of one Photoshop layer), page?: number from 1 (PDF / Illustrator page), drag?: bool (dropped files: Settings ▸ Import ▸ Default Drag Import As; files import as stills unless sequence), addToComp?: bool (also add them to the active comp, at time?, index?, position? as in layer.addItem), background?: bool (probe the files in a background job, jobs.list / jobs.wait; returns {job})}",
++            "{paths: [string] (files or folders), sequence?: bool (the Sequence checkbox: true imports numbered stills of one run as one image sequence, one picked file bringing its whole run and several picked files that range; default: a numbered still brings its run, except dropped files (drag), which import as stills as in After Effects; folders' runs import as sequences; false imports stills and a folder's files individually), alphabetical?: bool (Force Alphabetical Order: every image of that type in the folder, by name), frameRate?: fps (image sequences; default Settings ▸ Import ▸ Sequence Footage), importAs?: footage|composition|compositionLayerSizes (Photoshop, PDF, Illustrator and EPS files), layer?: name|index (footage of one Photoshop layer), page?: number from 1 (PDF / Illustrator page), drag?: bool (dropped files: Settings ▸ Import ▸ Default Drag Import As; files import as stills unless sequence), addToComp?: bool (also add them to the active comp, at time?, index?, position? as in layer.addItem), background?: bool (probe the files in a background job, jobs.list / jobs.wait; returns {job}), createCompFromFootage?: bool (create and open one composition from the imported visual/audio footage)}",
+             always,
+             import_cmd
+         ),
+diff --git a/crates/ui-egui/src/panels/viewer.rs b/crates/ui-egui/src/panels/viewer.rs
+index 984ad696..66a36774 100644
+--- a/crates/ui-egui/src/panels/viewer.rs
++++ b/crates/ui-egui/src/panels/viewer.rs
+@@ -2609,7 +2609,18 @@ fn empty_state(app: &mut EffectcraftApp, ui: &mut egui::Ui, rect: Rect) {
+     app.auto.add("viewer.empty.newComp", b1, "New Composition");
+     let b2 = Rect::from_center_size(c + vec2(0.0, 40.0), vec2(220.0, 30.0));
+     if widgets::text_button(ui, b2, "New Composition From Footage", false, &t, egui::Id::new("empty-fromfootage")).clicked() {
+-        let _ = crate::menus::invoke(app, &ui.ctx().clone(), "file.import", json!({}));
++        let selection = &app.session.state.project_selection;
++        let selected_footage = !selection.is_empty()
++            && selection.iter().all(|id| {
++                app.session.project.item(*id).is_some_and(
++                    |item| matches!(&item.kind, effectcraft_engine::project::ItemKind::Footage(f) if f.kind != effectcraft_engine::project::FootageKind::Data),
++                )
++            });
++        let (command, params) =
++            if selected_footage { ("file.newCompFromSelection", json!({"single": true})) } else { ("file.import", json!({"createCompFromFootage": true})) };
++        if let Err(error) = crate::menus::invoke(app, &ui.ctx().clone(), command, params) {
++            app.ui.status = error;
++        }
+     }
+     app.auto.add("viewer.empty.import", b2, "New Composition From Footage");
+     // A Project item dropped on the empty viewer creates the first composition,
+diff --git a/crates/ui-egui/tests/ui_drag_drop.rs b/crates/ui-egui/tests/ui_drag_drop.rs
+index 9b66f745..ecce674e 100644
+--- a/crates/ui-egui/tests/ui_drag_drop.rs
++++ b/crates/ui-egui/tests/ui_drag_drop.rs
+@@ -55,6 +55,50 @@ fn drag(h: &mut Harness<'_, EffectcraftApp>, from: Pos2, to: Pos2, modifiers: Mo
+     h.step();
+ }
+ 
++#[test]
++fn new_composition_from_footage_imports_the_picked_file_and_opens_it() {
++    let dir = std::env::temp_dir().join(format!("ec-ui-new-comp-from-footage-{}", std::process::id()));
++    let _ = std::fs::remove_dir_all(&dir);
++    std::fs::create_dir_all(&dir).unwrap();
++    let path = dir.join("clip.png");
++    std::fs::write(&path, b"").unwrap();
++
++    let mut s = Session::default();
++    s.importer = Some(Arc::new(Stills));
++    let mut h = Harness::builder().with_size(vec2(1600.0, 1000.0)).build_eframe(|_| EffectcraftApp::new(s));
++    h.run_steps(3);
++    let picked = path.to_string_lossy().to_string();
++    h.state_mut().hooks.pick_files = Some(Box::new(move |_| vec![picked.clone()]));
++    click_id(&mut h, "viewer.empty.import");
++
++    step_until(&mut h, |h| h.state().session.active_comp().is_some());
++    let comp = h.state().session.active_comp().expect("the picked footage opens in a composition");
++    assert_eq!((comp.width, comp.height), (64, 32));
++    assert_eq!(comp.layers.len(), 1);
++    assert_eq!(comp.layers[0].name, "clip.png");
++    assert!(matches!(&comp.layers[0].source, effectcraft_engine::project::LayerSource::Footage { .. }));
++    let _ = std::fs::remove_dir_all(&dir);
++}
++
++#[test]
++fn new_composition_from_footage_uses_selected_project_footage_without_reimporting() {
++    let mut s = Session::default();
++    let footage =
++        s.execute("file.importPlaceholder", json!({"name": "Selected.mp4", "width": 640, "height": 360, "frameRate": 24, "duration": 5})).unwrap()["item"]
++            .as_u64()
++            .unwrap();
++    s.state.project_selection = vec![effectcraft_engine::project::ItemId(footage)];
++    let mut h = Harness::builder().with_size(vec2(1600.0, 1000.0)).build_eframe(|_| EffectcraftApp::new(s));
++    h.run_steps(3);
++    click_id(&mut h, "viewer.empty.import");
++
++    let comp = h.state().session.active_comp().expect("selected footage opens in a composition");
++    assert_eq!((comp.width, comp.height, comp.duration.seconds()), (640, 360, 5.0));
++    assert_eq!(comp.layers.len(), 1);
++    assert_eq!(comp.layers[0].name, "Selected.mp4");
++    assert!(h.state().dialog.is_none(), "using selected footage should not reopen the file picker");
++}
++
+ /// Layer names top to bottom, and the In point of `name`.
+ fn stack(h: &Harness<'_, EffectcraftApp>) -> Vec<String> {
+     h.state().session.active_comp().unwrap().layers.iter().map(|l| l.name.clone()).collect()

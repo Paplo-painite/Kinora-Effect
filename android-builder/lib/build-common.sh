@@ -478,6 +478,19 @@ else
     mv "$SRC_TMP" "$SRC"
 fi
 
+if [[ "$APP" == "effectcraft" ]]; then
+    KINORA_PATCH="$ROOT/patches/kinora-new-comp-from-footage.patch"
+    [[ -s "$KINORA_PATCH" ]] || fail "Kinora's composition-from-footage patch is missing: $KINORA_PATCH"
+    if git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1; then
+        git -C "$SRC" apply "$KINORA_PATCH" || fail "Could not apply Kinora's composition-from-footage patch."
+        echo "Applied Kinora's composition-from-footage fix."
+    elif git -C "$SRC" apply --reverse --check "$KINORA_PATCH" >/dev/null 2>&1; then
+        echo "Kinora's composition-from-footage fix is already present."
+    else
+        fail "Kinora's composition-from-footage patch does not match this EffectCraft source revision; update the patch before building. No source files were changed."
+    fi
+fi
+
 # Upstream `main` is normally green, but a regression can sit there for a while (the upstream
 # preset-loader fix landed broken on 2026-10-17 and took its CI red). Each fix-up below is
 # guarded: it edits the checkout only while the broken text is still present, and is a silent
