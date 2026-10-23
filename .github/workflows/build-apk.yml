@@ -1,0 +1,61 @@
+name: Temporary Kinora Release APK build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-release-apk:
+    name: Build installable release APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out Kinora Effect
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.95 and Android arm64 target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.95.0
+          fi
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup default 1.95.0
+          rustup target add aarch64-linux-android
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustc --version
+          rustup target list --installed
+
+      - name: Install Pillow for Android adaptive icons
+        run: sudo apt-get update && sudo apt-get install -y python3-pil
+
+      - name: Build Kinora Effect release APK
+        env:
+          CARGO_TERM_COLOR: always
+          RUST_BACKTRACE: 1
+        run: ./build.sh
+
+      - name: Validate and checksum APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(android-builder/output/*.apk)
+          if (( ${#apks[@]} == 0 )); then
+            echo "No APK was produced in android-builder/output/." >&2
+            exit 1
+          fi
+          ls -lh "${apks[@]}"
+          sha256sum "${apks[@]}"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kinora-effect-release-apk
+          path: android-builder/output/*.apk
+          if-no-files-found: error
+          retention-days: 1
