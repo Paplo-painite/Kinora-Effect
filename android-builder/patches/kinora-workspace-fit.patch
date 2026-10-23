@@ -102,7 +102,7 @@ index fb381cf..5a2bac8 100644
 +    p.text(plus.center(), Align2::CENTER_CENTER, "+", Tokens::ui(14.0), t.text);
 +    app.auto.add_response("header.uiScale.increase", &plus_response, "Increase UI Scale");
 +    if plus_response.clicked() {
-+        if let Err(error) = app.set_pref("appearance.uiScale", scale.saturating_add(10).min(200)) {
++        if let Err(error) = app.set_pref("appearance.uiScale", json!(scale.saturating_add(10).min(200))) {
 +            app.ui.status = error;
 +        } else {
 +            app.apply_prefs(ui.ctx());
