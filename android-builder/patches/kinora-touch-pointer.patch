@@ -1,35 +1,35 @@
 --- a/crates/ui-egui/src/header.rs
 +++ b/crates/ui-egui/src/header.rs
-@@ -211,6 +211,36 @@
+@@ -6,6 +6,7 @@
+ use serde_json::json;
+ 
+ use crate::icons::{self, Icon};
++use crate::virtual_pointer;
+ use crate::state::Tool;
+ use crate::theme::Tokens;
+ use crate::widgets;
+@@ -211,6 +212,28 @@
              rx = r.min.x - 4.0;
          }
      }
-+    // TP (Touch Pointer): restore the compact floating cursor control in the top-right corner.
-+    // Auto preserves the contextual cursor chosen by the active tool; the other entries are
-+    // useful when a connected mouse/trackpad needs a stable, visible pointer on Android.
-+    let tp = Rect::from_min_size(pos2(rx - 36.0, cy - 13.0), vec2(36.0, 26.0));
-+    let tp_resp = ui.interact(tp, egui::Id::new("hdr-tp"), Sense::click()).on_hover_text("TP — Touch Pointer");
-+    p.rect_filled(tp, 8.0, if tp_resp.hovered() { t.hover } else { t.panel_bg });
-+    p.text(tp.center(), Align2::CENTER_CENTER, "TP", Tokens::semibold(11.0), t.text);
-+    app.auto.add_response("header.tp", &tp_resp, "Touch Pointer");
-+    let tp_modes = [
-+        ("auto", "Auto (contextual)"),
-+        ("arrow", "Arrow"),
-+        ("hand", "Hand"),
-+        ("crosshair", "Crosshair"),
-+        ("text", "Text"),
-+        ("zoom-in", "Zoom in"),
-+        ("zoom-out", "Zoom out"),
-+        ("grab", "Grab"),
-+    ];
-+    egui::Popup::menu(&tp_resp).style(crate::widgets::menu_style).show(|ui| {
++    // TP (Touch Pointer): the main area toggles the virtual pointer; the small arrow opens settings.
++    let tp = Rect::from_min_size(pos2(rx - 42.0, cy - 13.0), vec2(42.0, 26.0));
++    let tp_resp = ui.interact(tp, egui::Id::new("hdr-tp"), Sense::click()).on_hover_text("TP — Virtual Pointer");
++    p.rect_filled(tp, 8.0, if app.ui.virtual_pointer.enabled { t.accent } else if tp_resp.hovered() { t.hover } else { t.panel_bg });
++    p.text(pos2(tp.center().x - 4.0, tp.center().y), Align2::CENTER_CENTER, "TP", Tokens::semibold(11.0), t.text);
++    let arrow = Rect::from_min_size(pos2(tp.max.x - 13.0, tp.min.y), vec2(13.0, tp.height()));
++    p.text(arrow.center(), Align2::CENTER_CENTER, "▾", Tokens::ui(10.0), t.text_dim);
++    let arrow_resp = ui.interact(arrow, egui::Id::new("hdr-tp-settings"), Sense::click());
++    app.auto.add_response("header.tp", &tp_resp, "Virtual Pointer");
++    if tp_resp.clicked() && !arrow_resp.clicked() { app.ui.virtual_pointer.enabled = !app.ui.virtual_pointer.enabled; }
++    let tp_modes = [("auto", "Auto (contextual)"), ("arrow", "Arrow"), ("hand", "Hand"), ("crosshair", "Crosshair"), ("text", "Text"), ("zoom-in", "Zoom in"), ("zoom-out", "Zoom out"), ("grab", "Grab")];
++    egui::Popup::menu(&arrow_resp).style(crate::widgets::menu_style).show(|ui| {
++        virtual_pointer::settings_ui(ui, &mut app.ui.virtual_pointer);
++        ui.separator();
 +        for (id, label) in tp_modes {
 +            let row = ui.selectable_label(app.ui.tp_cursor == id, label);
 +            app.auto.add(&format!("header.tp.{id}"), row.rect, label);
-+            if row.clicked() {
-+                app.ui.tp_cursor = id.to_string();
-+                ui.close();
-+            }
++            if row.clicked() { app.ui.tp_cursor = id.to_string(); app.ui.virtual_pointer.cursor = id.to_string(); ui.close(); }
 +        }
 +    });
 +    rx = tp.min.x - 6.0;
@@ -37,7 +37,7 @@
      // Appearance: Sync with System, Light, Dark (a monitor, sun or moon), one click to the next.
      let (icon, mode) = match app.session.prefs.appearance.appearance_mode.as_str() {
          "auto" => (Icon::Monitor, tr("Sync with System")),
-@@ -769,3 +799,17 @@
+@@ -769,3 +792,17 @@
          assert!(!app.auto.elements.iter().any(|w| w.id == "tools.select.TypeVertical"));
      }
  }
@@ -57,17 +57,20 @@
 +}
 --- a/crates/ui-egui/src/state.rs
 +++ b/crates/ui-egui/src/state.rs
-@@ -562,6 +562,9 @@
+@@ -562,6 +562,12 @@
  #[derive(Clone, Debug, Serialize, Deserialize)]
  pub struct UiState {
      pub tool: Tool,
 +    /// TP (Touch Pointer) cursor override: "auto" keeps contextual cursors.
 +    #[serde(default = "default_tp_cursor")]
 +    pub tp_cursor: String,
++    /// Persistent touchpad-style virtual mouse pointer settings.
++    #[serde(default)]
++    pub virtual_pointer: crate::virtual_pointer::VirtualPointerState,
      /// Window ▸ Script Console input, output and history.
      #[serde(default)]
      pub script_console: crate::panels::script_console::ScriptConsole,
-@@ -693,10 +696,15 @@
+@@ -693,10 +699,16 @@
      pub scopes: crate::panels::scopes_panel::ScopesState,
  }
  
@@ -80,12 +83,21 @@
          UiState {
              tool: Tool::Selection,
 +            tp_cursor: default_tp_cursor(),
++            virtual_pointer: Default::default(),
              script_console: Default::default(),
              slot_tools: Tool::SLOTS.iter().map(|s| s[0]).collect(),
              workspace: "Default".into(),
 --- a/crates/ui-egui/src/lib.rs
 +++ b/crates/ui-egui/src/lib.rs
-@@ -1712,6 +1712,10 @@
+@@ -31,6 +31,7 @@
+ pub mod state;
+ pub mod theme;
+ pub mod widgets;
++pub mod virtual_pointer;
+ mod workspace_state;
+ 
+ use std::sync::Arc;
+@@ -1712,6 +1713,11 @@
          panels::learn::coach(self, &ctx);
          let lift = panels::media_panels::import_card(self, ui, full);
          self.draw_toast(ui, full, lift);
@@ -93,6 +105,327 @@
 +        if let Some(cursor) = header::tp_cursor_icon(&self.ui.tp_cursor) {
 +            ctx.set_cursor_icon(cursor);
 +        }
++        virtual_pointer::draw(&mut self.ui.virtual_pointer, &ctx, ctx.input(|i| i.time));
          if self.session.config.is_some() && self.workspace_store.has_changes(&self.ui) && !ctx.input(|i| i.pointer.any_down()) {
              if self.workspace_store.due(ctx.input(|i| i.time)) {
                  self.save_workspace_state();
+@@ -1862,6 +1868,7 @@
+     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+         let injected = !self.synthetic.is_empty();
+         self.feed_synthetic(raw_input);
++        virtual_pointer::process_input(&mut self.ui.virtual_pointer, raw_input);
+         if pointer_wrap::prepare_input(ctx, raw_input, injected) {
+             self.session.history.merge_key = None;
+         }
+--- /dev/null
++++ b/crates/ui-egui/src/virtual_pointer.rs
+@@ -0,0 +1,309 @@
++//! Touch-driven virtual mouse pointer for Android and touch-first displays.
++use egui::{Color32, Event, Id, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
++use serde::{Deserialize, Serialize};
++
++#[derive(Clone, Debug, Serialize, Deserialize)]
++pub struct VirtualPointerState {
++    #[serde(default)]
++    pub enabled: bool,
++    #[serde(default = "default_pos")]
++    pub pos: [f32; 2],
++    #[serde(default = "default_sensitivity")]
++    pub sensitivity: f32,
++    #[serde(default = "default_opacity")]
++    pub opacity: f32,
++    #[serde(default = "default_size")]
++    pub size: f32,
++    #[serde(default = "default_color")]
++    pub color: [u8; 4],
++    #[serde(default)]
++    pub outline: bool,
++    #[serde(default = "default_acceleration")]
++    pub acceleration: f32,
++    #[serde(default)]
++    pub magnifier: bool,
++    #[serde(default = "default_magnification")]
++    pub magnification: f32,
++    #[serde(default = "default_haptic")]
++    pub haptic: bool,
++    #[serde(default = "default_auto_hide")]
++    pub auto_hide_seconds: f32,
++    #[serde(default)]
++    pub left_handed: bool,
++    #[serde(default)]
++    pub keep_in_bounds: bool,
++    #[serde(default)]
++    pub drag_lock: bool,
++    #[serde(default = "default_cursor")]
++    pub cursor: String,
++    #[serde(skip)]
++    pub last_activity: f64,
++    #[serde(skip)]
++    pub touch_active: bool,
++    #[serde(skip)]
++    pub touch_moved: bool,
++    #[serde(skip)]
++    pub touch_started: f64,
++    #[serde(skip)]
++    pub last_touch: [f32; 2],
++    #[serde(skip)]
++    pub button_down: bool,
++    #[serde(skip)]
++    pub last_click_time: f64,
++    #[serde(skip)]
++    pub click_flash_until: f64,
++    #[serde(skip)]
++    pub pending_button: u8,
++}
++
++fn default_pos() -> [f32; 2] {
++    [240.0, 160.0]
++}
++fn default_sensitivity() -> f32 {
++    1.25
++}
++fn default_opacity() -> f32 {
++    1.0
++}
++fn default_size() -> f32 {
++    28.0
++}
++fn default_color() -> [u8; 4] {
++    [255, 255, 255, 255]
++}
++fn default_acceleration() -> f32 {
++    0.15
++}
++fn default_magnification() -> f32 {
++    1.5
++}
++fn default_haptic() -> bool {
++    true
++}
++fn default_auto_hide() -> f32 {
++    0.0
++}
++fn default_cursor() -> String {
++    "auto".into()
++}
++
++impl Default for VirtualPointerState {
++    fn default() -> Self {
++        Self {
++            enabled: false,
++            pos: default_pos(),
++            sensitivity: default_sensitivity(),
++            opacity: default_opacity(),
++            size: default_size(),
++            color: default_color(),
++            outline: true,
++            acceleration: default_acceleration(),
++            magnifier: false,
++            magnification: default_magnification(),
++            haptic: default_haptic(),
++            auto_hide_seconds: default_auto_hide(),
++            left_handed: false,
++            keep_in_bounds: true,
++            drag_lock: false,
++            cursor: default_cursor(),
++            last_activity: 0.0,
++            touch_active: false,
++            touch_moved: false,
++            touch_started: 0.0,
++            last_touch: [0.0, 0.0],
++            button_down: false,
++            last_click_time: 0.0,
++            click_flash_until: 0.0,
++            pending_button: 0,
++        }
++    }
++}
++
++pub fn cursor_icon(mode: &str) -> egui::CursorIcon {
++    match mode {
++        "hand" => egui::CursorIcon::PointingHand,
++        "crosshair" => egui::CursorIcon::Crosshair,
++        "text" => egui::CursorIcon::Text,
++        "zoom-in" => egui::CursorIcon::ZoomIn,
++        "zoom-out" => egui::CursorIcon::ZoomOut,
++        "grab" => egui::CursorIcon::Grab,
++        _ => egui::CursorIcon::Default,
++    }
++}
++
++fn control_zone(pos: Pos2, bounds: Rect) -> bool {
++    (pos.x > bounds.right() - 100.0 && pos.y < bounds.top() + 88.0)
++        || (pos.y > bounds.bottom() - 110.0 && (pos.x < bounds.left() + 130.0 || pos.x > bounds.right() - 130.0))
++}
++
++fn clamp_pos(state: &VirtualPointerState, p: Pos2, bounds: Rect) -> Pos2 {
++    if state.keep_in_bounds { p.clamp(bounds.min + vec2(4.0, 4.0), bounds.max - vec2(4.0, 4.0)) } else { p }
++}
++
++fn push_click(events: &mut Vec<Event>, pos: Pos2, button: PointerButton) {
++    events.push(Event::PointerMoved(pos));
++    events.push(Event::PointerButton { pos, button, pressed: true, modifiers: Default::default() });
++    events.push(Event::PointerButton { pos, button, pressed: false, modifiers: Default::default() });
++}
++
++/// Converts one-finger touchpad gestures into egui mouse events. Two-finger input is untouched.
++pub fn process_input(state: &mut VirtualPointerState, raw: &mut egui::RawInput) {
++    if !state.enabled {
++        return;
++    }
++    if state.pending_button != 0 {
++        let button = if state.pending_button == 2 { PointerButton::Secondary } else { PointerButton::Primary };
++        push_click(&mut raw.events, Pos2::new(state.pos[0], state.pos[1]), button);
++        state.pending_button = 0;
++        state.click_flash_until = raw.time.unwrap_or(0.0) + 0.18;
++    }
++    let bounds = raw.screen_rect.unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1000.0, 700.0)));
++    let touch_count = raw.events.iter().filter(|event| matches!(event, Event::Touch { .. })).count();
++    if touch_count > 1 {
++        state.touch_active = false;
++        return;
++    }
++    let touches: Vec<(egui::TouchPhase, Pos2)> = raw
++        .events
++        .iter()
++        .filter_map(|event| match event {
++            Event::Touch { phase, pos, .. } => Some((*phase, *pos)),
++            _ => None,
++        })
++        .collect();
++    if touches.is_empty() {
++        return;
++    }
++    if touches.iter().any(|(_, pos)| control_zone(*pos, bounds)) {
++        return;
++    }
++    let mut kept: Vec<Event> =
++        raw.events.drain(..).filter(|event| !matches!(event, Event::Touch { .. } | Event::PointerMoved(_) | Event::PointerButton { .. })).collect();
++    let mut generated = Vec::new();
++    let now = raw.time.unwrap_or(0.0);
++    for (phase, raw_pos) in touches {
++        match phase {
++            egui::TouchPhase::Start => {
++                state.touch_active = true;
++                state.touch_moved = false;
++                state.touch_started = now;
++                state.last_touch = [raw_pos.x, raw_pos.y];
++                state.last_activity = now;
++            }
++            egui::TouchPhase::Move if state.touch_active => {
++                let delta = vec2(raw_pos.x - state.last_touch[0], raw_pos.y - state.last_touch[1]);
++                let distance = delta.length();
++                let boost = 1.0 + (distance * state.acceleration).min(3.0);
++                let next = Pos2::new(state.pos[0], state.pos[1]) + delta * state.sensitivity * boost;
++                let next = clamp_pos(state, next, bounds);
++                state.pos = [next.x, next.y];
++                state.last_touch = [raw_pos.x, raw_pos.y];
++                state.touch_moved |= distance > 1.0;
++                state.last_activity = now;
++                generated.push(Event::PointerMoved(Pos2::new(state.pos[0], state.pos[1])));
++                if now - state.touch_started > 0.45 && !state.button_down {
++                    state.button_down = true;
++                    generated.push(Event::PointerButton {
++                        pos: Pos2::new(state.pos[0], state.pos[1]),
++                        button: PointerButton::Primary,
++                        pressed: true,
++                        modifiers: Default::default(),
++                    });
++                }
++            }
++            egui::TouchPhase::End | egui::TouchPhase::Cancel if state.touch_active => {
++                let pos = Pos2::new(state.pos[0], state.pos[1]);
++                if state.button_down {
++                    generated.push(Event::PointerButton { pos, button: PointerButton::Primary, pressed: false, modifiers: Default::default() });
++                    state.button_down = false;
++                } else if !state.touch_moved {
++                    push_click(&mut generated, pos, PointerButton::Primary);
++                    state.click_flash_until = now + 0.18;
++                    state.last_click_time = now;
++                }
++                state.touch_active = false;
++                state.last_activity = now;
++            }
++            _ => {}
++        }
++    }
++    kept.extend(generated);
++    raw.events = kept;
++}
++
++pub fn draw(state: &mut VirtualPointerState, ctx: &egui::Context, now: f64) {
++    if !state.enabled {
++        return;
++    }
++    if state.auto_hide_seconds > 0.0 && now - state.last_activity > state.auto_hide_seconds as f64 {
++        return;
++    }
++    let center = Pos2::new(state.pos[0], state.pos[1]);
++    let size = state.size.max(10.0);
++    let controls_pos = if state.left_handed {
++        pos2(14.0, 14.0)
++    } else {
++        pos2(ctx.input(|i| i.content_rect().right()) - 118.0, ctx.input(|i| i.content_rect().bottom()) - 62.0)
++    };
++    egui::Area::new(Id::new("virtual-pointer-buttons")).order(Order::Foreground).fixed_pos(controls_pos).show(ctx, |ui| {
++        ui.horizontal(|ui| {
++            let (first, second) = if state.left_handed { ("R", "L") } else { ("L", "R") };
++            if ui.button(first).clicked() {
++                state.pending_button = if first == "R" { 2 } else { 1 };
++            }
++            if ui.button(second).clicked() {
++                state.pending_button = if second == "R" { 2 } else { 1 };
++            }
++        });
++    });
++    let color = Color32::from_rgba_unmultiplied(state.color[0], state.color[1], state.color[2], (state.opacity.clamp(0.0, 1.0) * 255.0) as u8);
++    let outline = if state.outline { Stroke::new((size * 0.10).max(1.0), Color32::from_black_alpha(220)) } else { Stroke::NONE };
++    egui::Area::new(Id::new("virtual-pointer-overlay")).order(Order::Foreground).fixed_pos(center - vec2(size, size)).interactable(false).show(ctx, |ui| {
++        let r = Rect::from_center_size(pos2(size, size), vec2(size * 2.0, size * 2.0));
++        let p = ui.painter();
++        match state.cursor.as_str() {
++            "crosshair" => {
++                p.line_segment([pos2(size * 0.2, size), pos2(size * 1.8, size)], Stroke::new(2.0, color));
++                p.line_segment([pos2(size, size * 0.2), pos2(size, size * 1.8)], Stroke::new(2.0, color));
++            }
++            "hand" | "grab" => {
++                p.circle_filled(r.center(), size * 0.48, color);
++                p.circle_stroke(r.center(), size * 0.48, outline);
++            }
++            _ => {
++                let tip = pos2(size * 0.30, size * 0.18);
++                let a = pos2(size * 0.30, size * 1.55);
++                let b = pos2(size * 0.76, size * 1.20);
++                p.add(Shape::convex_polygon(vec![tip, a, b], color, outline));
++            }
++        }
++        if state.magnifier {
++            p.circle_stroke(r.center(), size * state.magnification.max(1.0), Stroke::new(1.5, color));
++        }
++        if state.click_flash_until > now {
++            p.circle_stroke(r.center(), size * 0.7, Stroke::new(3.0, Color32::from_rgba_unmultiplied(255, 220, 80, 180)));
++        }
++    });
++}
++
++pub fn settings_ui(ui: &mut Ui, state: &mut VirtualPointerState) {
++    ui.label("Virtual Pointer");
++    ui.checkbox(&mut state.enabled, "Enabled");
++    ui.add(egui::Slider::new(&mut state.sensitivity, 0.25..=3.0).text("Sensitivity"));
++    ui.add(egui::Slider::new(&mut state.acceleration, 0.0..=0.5).text("Acceleration"));
++    ui.add(egui::Slider::new(&mut state.opacity, 0.2..=1.0).text("Opacity"));
++    ui.add(egui::Slider::new(&mut state.size, 14.0..=64.0).text("Size"));
++    ui.checkbox(&mut state.outline, "Outline");
++    ui.checkbox(&mut state.magnifier, "Magnifier");
++    if state.magnifier {
++        ui.add(egui::Slider::new(&mut state.magnification, 1.1..=3.0).text("Magnification"));
++    }
++    ui.checkbox(&mut state.haptic, "Haptic");
++    ui.add(egui::Slider::new(&mut state.auto_hide_seconds, 0.0..=20.0).text("Auto-hide (0 = off)"));
++    ui.checkbox(&mut state.left_handed, "Left-handed buttons");
++    ui.checkbox(&mut state.keep_in_bounds, "Keep in screen bounds");
++    ui.checkbox(&mut state.drag_lock, "Drag lock");
++    if ui.button("Reset defaults").clicked() {
++        *state = VirtualPointerState::default();
++    }
++}
