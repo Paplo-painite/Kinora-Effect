@@ -152,7 +152,7 @@
          }
 --- /dev/null
 +++ b/crates/ui-egui/src/virtual_pointer.rs
-@@ -0,0 +1,322 @@
+@@ -0,0 +1,335 @@
 +//! Touch-driven virtual mouse pointer for Android and touch-first displays.
 +use egui::{Align2, Color32, Event, FontId, Id, LayerId, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
 +use serde::{Deserialize, Serialize};
@@ -177,6 +177,8 @@
 +    pub acceleration: f32,
 +    #[serde(default)]
 +    pub magnifier: bool,
++    #[serde(default)]
++    pub magnifier_on_move_only: bool,
 +    #[serde(default = "default_magnification")]
 +    pub magnification: f32,
 +    #[serde(default = "default_haptic")]
@@ -256,6 +258,7 @@
 +            outline: true,
 +            acceleration: default_acceleration(),
 +            magnifier: false,
++            magnifier_on_move_only: false,
 +            magnification: default_magnification(),
 +            haptic: default_haptic(),
 +            auto_hide_seconds: default_auto_hide(),
@@ -422,8 +425,17 @@
 +            p.add(Shape::convex_polygon(vec![tip, a, b], color, outline));
 +        }
 +    }
-+    if state.magnifier {
-+        p.circle_stroke(center, size * state.magnification.max(1.0), Stroke::new(1.5, color));
++    let lens_active = state.magnifier && (!state.magnifier_on_move_only || now - state.last_activity < 0.35);
++    if lens_active {
++        let lens_radius = (size * 2.2 * state.magnification.clamp(1.1, 3.0)).clamp(34.0, 110.0);
++        // Glass treatment and reticle; the actual click point remains exactly at `center`.
++        p.circle_filled(center, lens_radius, Color32::from_black_alpha(34));
++        p.circle_stroke(center, lens_radius, Stroke::new(3.0, Color32::from_white_alpha(230)));
++        p.circle_stroke(center, lens_radius - 5.0, Stroke::new(1.0, color));
++        p.line_segment([pos2(center.x - 8.0, center.y), pos2(center.x + 8.0, center.y)], Stroke::new(1.0, color));
++        p.line_segment([pos2(center.x, center.y - 8.0), pos2(center.x, center.y + 8.0)], Stroke::new(1.0, color));
++        let label = format!("{:.1}x", state.magnification.clamp(1.1, 3.0));
++        p.text(pos2(center.x + lens_radius - 4.0, center.y - lens_radius + 4.0), Align2::RIGHT_TOP, label, FontId::monospace(11.0), Color32::WHITE);
 +    }
 +    if state.click_flash_until > now {
 +        p.circle_stroke(center, size * 0.7, Stroke::new(3.0, Color32::from_rgba_unmultiplied(255, 220, 80, 180)));
@@ -465,6 +477,7 @@
 +    ui.checkbox(&mut state.magnifier, "Magnifier");
 +    if state.magnifier {
 +        ui.add(egui::Slider::new(&mut state.magnification, 1.1..=3.0).text("Magnification"));
++        ui.checkbox(&mut state.magnifier_on_move_only, "Show only while moving");
 +    }
 +    ui.checkbox(&mut state.haptic, "Haptic");
 +    ui.add(egui::Slider::new(&mut state.auto_hide_seconds, 0.0..=20.0).text("Auto-hide (0 = off)"));
