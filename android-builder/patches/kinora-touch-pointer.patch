@@ -1,66 +1,35 @@
 --- a/crates/ui-egui/src/header.rs
 +++ b/crates/ui-egui/src/header.rs
-@@ -8,6 +8,7 @@
+@@ -6,6 +6,7 @@
+ use serde_json::json;
+ 
  use crate::icons::{self, Icon};
++use crate::virtual_pointer;
  use crate::state::Tool;
  use crate::theme::Tokens;
-+use crate::virtual_pointer;
  use crate::widgets;
- use crate::{Dialog, EffectcraftApp};
- use effectcraft_color::BlendMode;
-@@ -211,6 +212,59 @@
+@@ -211,6 +212,28 @@
              rx = r.min.x - 4.0;
          }
      }
 +    // TP (Touch Pointer): the main area toggles the virtual pointer; the small arrow opens settings.
 +    let tp = Rect::from_min_size(pos2(rx - 42.0, cy - 13.0), vec2(42.0, 26.0));
 +    let tp_resp = ui.interact(tp, egui::Id::new("hdr-tp"), Sense::click()).on_hover_text("TP — Virtual Pointer");
-+    p.rect_filled(
-+        tp,
-+        8.0,
-+        if app.ui.virtual_pointer.enabled {
-+            t.accent
-+        } else if tp_resp.hovered() {
-+            t.hover
-+        } else {
-+            t.panel_bg
-+        },
-+    );
++    p.rect_filled(tp, 8.0, if app.ui.virtual_pointer.enabled { t.accent } else if tp_resp.hovered() { t.hover } else { t.panel_bg });
 +    p.text(pos2(tp.center().x - 4.0, tp.center().y), Align2::CENTER_CENTER, "TP", Tokens::semibold(11.0), t.text);
 +    let arrow = Rect::from_min_size(pos2(tp.max.x - 13.0, tp.min.y), vec2(13.0, tp.height()));
 +    p.text(arrow.center(), Align2::CENTER_CENTER, "▾", Tokens::ui(10.0), t.text_dim);
 +    let arrow_resp = ui.interact(arrow, egui::Id::new("hdr-tp-settings"), Sense::click());
 +    app.auto.add_response("header.tp", &tp_resp, "Virtual Pointer");
-+    if tp_resp.clicked() && !arrow_resp.clicked() {
-+        app.ui.virtual_pointer.enabled = !app.ui.virtual_pointer.enabled;
-+        if app.ui.virtual_pointer.enabled {
-+            let r = ui.ctx().input(|i| i.content_rect());
-+            app.ui.virtual_pointer.pos = [r.center().x, r.center().y];
-+            app.ui.virtual_pointer.last_activity = ui.ctx().input(|i| i.time);
-+            ui.ctx().request_repaint();
-+        }
-+    }
-+    let tp_modes = [
-+        ("auto", "Auto (contextual)"),
-+        ("arrow", "Arrow"),
-+        ("hand", "Hand"),
-+        ("crosshair", "Crosshair"),
-+        ("text", "Text"),
-+        ("zoom-in", "Zoom in"),
-+        ("zoom-out", "Zoom out"),
-+        ("grab", "Grab"),
-+    ];
++    if tp_resp.clicked() && !arrow_resp.clicked() { app.ui.virtual_pointer.enabled = !app.ui.virtual_pointer.enabled; }
++    let tp_modes = [("auto", "Auto (contextual)"), ("arrow", "Arrow"), ("hand", "Hand"), ("crosshair", "Crosshair"), ("text", "Text"), ("zoom-in", "Zoom in"), ("zoom-out", "Zoom out"), ("grab", "Grab")];
 +    egui::Popup::menu(&arrow_resp).style(crate::widgets::menu_style).show(|ui| {
 +        virtual_pointer::settings_ui(ui, &mut app.ui.virtual_pointer);
 +        ui.separator();
 +        for (id, label) in tp_modes {
 +            let row = ui.selectable_label(app.ui.tp_cursor == id, label);
 +            app.auto.add(&format!("header.tp.{id}"), row.rect, label);
-+            if row.clicked() {
-+                app.ui.tp_cursor = id.to_string();
-+                app.ui.virtual_pointer.cursor = id.to_string();
-+                ui.close();
-+            }
++            if row.clicked() { app.ui.tp_cursor = id.to_string(); app.ui.virtual_pointer.cursor = id.to_string(); ui.close(); }
 +        }
 +    });
 +    rx = tp.min.x - 6.0;
@@ -68,7 +37,7 @@
      // Appearance: Sync with System, Light, Dark (a monitor, sun or moon), one click to the next.
      let (icon, mode) = match app.session.prefs.appearance.appearance_mode.as_str() {
          "auto" => (Icon::Monitor, tr("Sync with System")),
-@@ -769,3 +823,17 @@
+@@ -769,3 +792,17 @@
          assert!(!app.auto.elements.iter().any(|w| w.id == "tools.select.TypeVertical"));
      }
  }
@@ -120,14 +89,14 @@
              workspace: "Default".into(),
 --- a/crates/ui-egui/src/lib.rs
 +++ b/crates/ui-egui/src/lib.rs
-@@ -30,6 +30,7 @@
- pub mod prefs_live;
+@@ -31,6 +31,7 @@
  pub mod state;
  pub mod theme;
-+pub mod virtual_pointer;
  pub mod widgets;
++pub mod virtual_pointer;
  mod workspace_state;
  
+ use std::sync::Arc;
 @@ -1712,6 +1713,11 @@
          panels::learn::coach(self, &ctx);
          let lift = panels::media_panels::import_card(self, ui, full);
@@ -150,9 +119,9 @@
          }
 --- /dev/null
 +++ b/crates/ui-egui/src/virtual_pointer.rs
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,311 @@
 +//! Touch-driven virtual mouse pointer for Android and touch-first displays.
-+use egui::{Color32, Event, Id, LayerId, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
++use egui::{Color32, Event, Id, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
 +use serde::{Deserialize, Serialize};
 +
 +#[derive(Clone, Debug, Serialize, Deserialize)]
@@ -388,43 +357,16 @@
 +    if !state.enabled {
 +        return;
 +    }
-+    let bounds = ctx.input(|i| i.content_rect());
 +    if state.auto_hide_seconds > 0.0 && now - state.last_activity > state.auto_hide_seconds as f64 {
-+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
 +        return;
 +    }
-+    // Keep the overlay alive even when the rest of the app is idle.
-+    ctx.request_repaint_after(std::time::Duration::from_millis(33));
-+    let center = Pos2::new(state.pos[0], state.pos[1]).clamp(bounds.min + vec2(4.0, 4.0), bounds.max - vec2(4.0, 4.0));
++    let center = Pos2::new(state.pos[0], state.pos[1]);
 +    let size = state.size.max(10.0);
-+    let color = Color32::from_rgba_unmultiplied(state.color[0], state.color[1], state.color[2], (state.opacity.clamp(0.0, 1.0) * 255.0) as u8);
-+    let outline = if state.outline { Stroke::new((size * 0.10).max(1.0), Color32::from_black_alpha(220)) } else { Stroke::NONE };
-+    // Draw directly into a foreground layer. This cannot be clipped by an Area's layout rectangle.
-+    let painter = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("virtual-pointer-overlay")));
-+    match state.cursor.as_str() {
-+        "crosshair" => {
-+            painter.line_segment([pos2(center.x - size * 0.8, center.y), pos2(center.x + size * 0.8, center.y)], Stroke::new(2.0, color));
-+            painter.line_segment([pos2(center.x, center.y - size * 0.8), pos2(center.x, center.y + size * 0.8)], Stroke::new(2.0, color));
-+        }
-+        "hand" | "grab" => {
-+            painter.circle_filled(center, size * 0.48, color);
-+            painter.circle_stroke(center, size * 0.48, outline);
-+        }
-+        _ => {
-+            let tip = pos2(center.x - size * 0.70, center.y - size * 0.82);
-+            let a = pos2(center.x - size * 0.70, center.y + size * 0.55);
-+            let b = pos2(center.x - size * 0.15, center.y + size * 0.20);
-+            painter.add(Shape::convex_polygon(vec![tip, a, b], color, outline));
-+        }
-+    }
-+    if state.magnifier {
-+        painter.circle_stroke(center, size * state.magnification.max(1.0), Stroke::new(1.5, color));
-+    }
-+    if state.click_flash_until > now {
-+        painter.circle_stroke(center, size * 0.7, Stroke::new(3.0, Color32::from_rgba_unmultiplied(255, 220, 80, 180)));
-+    }
-+    // Buttons remain a normal egui Area so they can receive input; they are deliberately separate.
-+    let controls_pos = if state.left_handed { pos2(14.0, 14.0) } else { pos2(bounds.right() - 118.0, bounds.bottom() - 62.0) };
++    let controls_pos = if state.left_handed {
++        pos2(14.0, 14.0)
++    } else {
++        pos2(ctx.input(|i| i.content_rect().right()) - 118.0, ctx.input(|i| i.content_rect().bottom()) - 62.0)
++    };
 +    egui::Area::new(Id::new("virtual-pointer-buttons")).order(Order::Foreground).fixed_pos(controls_pos).show(ctx, |ui| {
 +        ui.horizontal(|ui| {
 +            let (first, second) = if state.left_handed { ("R", "L") } else { ("L", "R") };
@@ -436,7 +378,38 @@
 +            }
 +        });
 +    });
++    let color = Color32::from_rgba_unmultiplied(state.color[0], state.color[1], state.color[2], (state.opacity.clamp(0.0, 1.0) * 255.0) as u8);
++    let outline = if state.outline { Stroke::new((size * 0.10).max(1.0), Color32::from_black_alpha(220)) } else { Stroke::NONE };
++    egui::Area::new(Id::new("virtual-pointer-overlay")).order(Order::Foreground).fixed_pos(center - vec2(size, size)).interactable(false).show(ctx, |ui| {
++        // Reserve the overlay area; painter-only content otherwise gets clipped to zero size.
++        ui.set_min_size(vec2(size * 2.0, size * 2.0));
++        let r = Rect::from_center_size(pos2(size, size), vec2(size * 2.0, size * 2.0));
++        let p = ui.painter();
++        match state.cursor.as_str() {
++            "crosshair" => {
++                p.line_segment([pos2(size * 0.2, size), pos2(size * 1.8, size)], Stroke::new(2.0, color));
++                p.line_segment([pos2(size, size * 0.2), pos2(size, size * 1.8)], Stroke::new(2.0, color));
++            }
++            "hand" | "grab" => {
++                p.circle_filled(r.center(), size * 0.48, color);
++                p.circle_stroke(r.center(), size * 0.48, outline);
++            }
++            _ => {
++                let tip = pos2(size * 0.30, size * 0.18);
++                let a = pos2(size * 0.30, size * 1.55);
++                let b = pos2(size * 0.76, size * 1.20);
++                p.add(Shape::convex_polygon(vec![tip, a, b], color, outline));
++            }
++        }
++        if state.magnifier {
++            p.circle_stroke(r.center(), size * state.magnification.max(1.0), Stroke::new(1.5, color));
++        }
++        if state.click_flash_until > now {
++            p.circle_stroke(r.center(), size * 0.7, Stroke::new(3.0, Color32::from_rgba_unmultiplied(255, 220, 80, 180)));
++        }
++    });
 +}
++
 +pub fn settings_ui(ui: &mut Ui, state: &mut VirtualPointerState) {
 +    ui.label("Virtual Pointer");
 +    ui.checkbox(&mut state.enabled, "Enabled");
