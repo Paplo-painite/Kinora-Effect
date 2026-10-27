@@ -502,6 +502,18 @@ if [[ "$APP" == "effectcraft" ]]; then
     done
 fi
 
+# EffectCraft embeds the ArtCraft mark in the shared UI header and About dialog. Replace that
+# upstream artwork in the build checkout so the launcher icon and every in-app application mark
+# use the same Kinora artwork; editing/tool icons remain untouched.
+if [[ "$APP" == "effectcraft" ]]; then
+    KINORA_BRAND_ICON="$ROOT/../assets/kinora-icon.png"
+    KINORA_BRAND_MARK="$SRC/docs/brand/artcraft-mark.png"
+    [[ -f "$KINORA_BRAND_ICON" ]] || fail "Kinora brand icon is missing: $KINORA_BRAND_ICON"
+    [[ -d "$(dirname "$KINORA_BRAND_MARK")" ]] || fail "EffectCraft brand directory is missing: $(dirname "$KINORA_BRAND_MARK")"
+    cp -- "$KINORA_BRAND_ICON" "$KINORA_BRAND_MARK"
+    echo "Replaced EffectCraft in-app ArtCraft mark with Kinora artwork."
+fi
+
 # Upstream `main` is normally green, but a regression can sit there for a while (the upstream
 # preset-loader fix landed broken on 2026-10-17 and took its CI red). Each fix-up below is
 # guarded: it edits the checkout only while the broken text is still present, and is a silent

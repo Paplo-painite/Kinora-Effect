@@ -11,6 +11,8 @@ This repository builds the open-source **EffectCraft** application for Android u
 
 APK files are written to `android-builder/output/`, with names such as `kinora-effect-<version>.apk`. Building requires Linux x86_64, Rust 1.95 or newer, Java 17–23, and an internet connection. The builder downloads the Android SDK and JDK when they are not already available. Pass `-appicon=/path/to/icon.png` to use a different launcher icon.
 
+The Kinora artwork is used both for the Android launcher icon and for the EffectCraft application mark shown inside the UI and About dialog. The editor's tool icons are intentionally unchanged.
+
 The builder stores its signing key locally at `android-builder/keys/kinora-effect.jks`. Keep this key to install future APKs signed with the same key, and do not commit it to GitHub. This local key is not an official Google Play release key.
 
 ## Android display mode
