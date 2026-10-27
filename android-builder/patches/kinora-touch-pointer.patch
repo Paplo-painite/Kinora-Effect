@@ -119,7 +119,7 @@
          }
 --- /dev/null
 +++ b/crates/ui-egui/src/virtual_pointer.rs
-@@ -0,0 +1,309 @@
+@@ -0,0 +1,311 @@
 +//! Touch-driven virtual mouse pointer for Android and touch-first displays.
 +use egui::{Color32, Event, Id, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
 +use serde::{Deserialize, Serialize};
@@ -381,6 +381,8 @@
 +    let color = Color32::from_rgba_unmultiplied(state.color[0], state.color[1], state.color[2], (state.opacity.clamp(0.0, 1.0) * 255.0) as u8);
 +    let outline = if state.outline { Stroke::new((size * 0.10).max(1.0), Color32::from_black_alpha(220)) } else { Stroke::NONE };
 +    egui::Area::new(Id::new("virtual-pointer-overlay")).order(Order::Foreground).fixed_pos(center - vec2(size, size)).interactable(false).show(ctx, |ui| {
++        // Reserve the overlay area; painter-only content otherwise gets clipped to zero size.
++        ui.set_min_size(vec2(size * 2.0, size * 2.0));
 +        let r = Rect::from_center_size(pos2(size, size), vec2(size * 2.0, size * 2.0));
 +        let p = ui.painter();
 +        match state.cursor.as_str() {
