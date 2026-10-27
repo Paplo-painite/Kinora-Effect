@@ -483,6 +483,7 @@ if [[ "$APP" == "effectcraft" ]]; then
         "$ROOT/patches/kinora-new-comp-from-footage.patch"
         "$ROOT/patches/kinora-desktop-fixed.patch"
         "$ROOT/patches/kinora-workspace-fit.patch"
+        "$ROOT/patches/kinora-touch-pointer.patch"
     )
     # Validate every patch first, so a stale patch cannot leave a half-patched checkout.
     for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
