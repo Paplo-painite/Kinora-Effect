@@ -6,15 +6,11 @@ index ae66eae..3875d5d 100644
      "Default",
 +    "Kinora Fit",
      "Standard",
-@@ -365,2 +366,11 @@ pub fn workspace(name: &str) -> DockNode {
+@@ -365,2 +366,7 @@ pub fn workspace(name: &str) -> DockNode {
          ),
 +        "Kinora Fit" => hsplit(
 +            FixedB(155.0),
-+            vsplit(
-+                Ratio(0.62),
-+                hsplit(FixedA(155.0), tabs(&[Project, EffectControls], 0), tabs(&[Composition, Layer], 0)),
-+                tabs(&[Timeline, RenderQueue], 0),
-+            ),
++            vsplit(Ratio(0.62), hsplit(FixedA(155.0), tabs(&[Project, EffectControls], 0), tabs(&[Composition, Layer], 0)), tabs(&[Timeline, RenderQueue], 0)),
 +            stack(&[(Preview, true, Some(46.0)), (Properties, true, None), (Align, false, None), (Audio, false, None), (EffectsPresets, false, None)]),
 +        ),
          "Minimal" => vsplit(Ratio(0.6), tabs(&[Composition], 0), tabs(&[Timeline], 0)),
