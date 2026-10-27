@@ -152,9 +152,9 @@
          }
 --- /dev/null
 +++ b/crates/ui-egui/src/virtual_pointer.rs
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,322 @@
 +//! Touch-driven virtual mouse pointer for Android and touch-first displays.
-+use egui::{Color32, Event, Id, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
++use egui::{Align2, Color32, Event, FontId, Id, LayerId, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
 +use serde::{Deserialize, Serialize};
 +
 +#[derive(Clone, Debug, Serialize, Deserialize)]
@@ -191,6 +191,8 @@
 +    pub drag_lock: bool,
 +    #[serde(default = "default_cursor")]
 +    pub cursor: String,
++    #[serde(default)]
++    pub debug_coordinates: bool,
 +    #[serde(skip)]
 +    pub last_activity: f64,
 +    #[serde(skip)]
@@ -261,6 +263,7 @@
 +            keep_in_bounds: true,
 +            drag_lock: false,
 +            cursor: default_cursor(),
++            debug_coordinates: false,
 +            last_activity: 0.0,
 +            touch_active: false,
 +            touch_moved: false,
@@ -390,16 +393,48 @@
 +    if !state.enabled {
 +        return;
 +    }
++    // Keep the native overlay repainting like requestAnimationFrame while enabled.
++    ctx.request_repaint_after(std::time::Duration::from_millis(16));
++    let bounds = ctx.input(|i| i.content_rect());
 +    if state.auto_hide_seconds > 0.0 && now - state.last_activity > state.auto_hide_seconds as f64 {
 +        return;
 +    }
-+    let center = Pos2::new(state.pos[0], state.pos[1]);
++    // These are the same screen-space coordinates used by process_input for injected events.
++    let center = Pos2::new(state.pos[0], state.pos[1]).clamp(bounds.min + vec2(4.0, 4.0), bounds.max - vec2(4.0, 4.0));
 +    let size = state.size.max(10.0);
-+    let controls_pos = if state.left_handed {
-+        pos2(14.0, 14.0)
-+    } else {
-+        pos2(ctx.input(|i| i.content_rect().right()) - 118.0, ctx.input(|i| i.content_rect().bottom()) - 62.0)
-+    };
++    let color = Color32::from_rgba_unmultiplied(state.color[0], state.color[1], state.color[2], (state.opacity.clamp(0.0, 1.0) * 255.0) as u8);
++    let outline = if state.outline { Stroke::new((size * 0.10).max(1.0), Color32::from_black_alpha(220)) } else { Stroke::NONE };
++    // Draw outside every panel/zoom container. No Area transform can move this layer to (0, 0).
++    let p = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("virtual-pointer-overlay")));
++    match state.cursor.as_str() {
++        "crosshair" => {
++            p.line_segment([pos2(center.x - size * 0.8, center.y), pos2(center.x + size * 0.8, center.y)], Stroke::new(2.0, color));
++            p.line_segment([pos2(center.x, center.y - size * 0.8), pos2(center.x, center.y + size * 0.8)], Stroke::new(2.0, color));
++        }
++        "circle" | "hand" | "grab" => {
++            p.circle_filled(center, size * 0.48, color);
++            p.circle_stroke(center, size * 0.48, outline);
++        }
++        _ => {
++            let tip = pos2(center.x - size * 0.70, center.y - size * 0.82);
++            let a = pos2(center.x - size * 0.70, center.y + size * 0.55);
++            let b = pos2(center.x - size * 0.15, center.y + size * 0.20);
++            p.add(Shape::convex_polygon(vec![tip, a, b], color, outline));
++        }
++    }
++    if state.magnifier {
++        p.circle_stroke(center, size * state.magnification.max(1.0), Stroke::new(1.5, color));
++    }
++    if state.click_flash_until > now {
++        p.circle_stroke(center, size * 0.7, Stroke::new(3.0, Color32::from_rgba_unmultiplied(255, 220, 80, 180)));
++    }
++    if state.debug_coordinates {
++        let text = format!("VP x={:.0} y={:.0}", center.x, center.y);
++        p.rect_filled(Rect::from_min_size(pos2(8.0, 8.0), vec2(125.0, 24.0)), 4.0, Color32::from_black_alpha(190));
++        p.text(pos2(14.0, 20.0), Align2::LEFT_CENTER, text, FontId::monospace(12.0), Color32::WHITE);
++    }
++    // Buttons remain normal egui controls and are separate from the non-interactive pointer layer.
++    let controls_pos = if state.left_handed { pos2(14.0, 14.0) } else { pos2(bounds.right() - 118.0, bounds.bottom() - 62.0) };
 +    egui::Area::new(Id::new("virtual-pointer-buttons")).order(Order::Foreground).fixed_pos(controls_pos).show(ctx, |ui| {
 +        ui.horizontal(|ui| {
 +            let (first, second) = if state.left_handed { ("R", "L") } else { ("L", "R") };
@@ -411,45 +446,11 @@
 +            }
 +        });
 +    });
-+    let color = Color32::from_rgba_unmultiplied(state.color[0], state.color[1], state.color[2], (state.opacity.clamp(0.0, 1.0) * 255.0) as u8);
-+    let outline = if state.outline { Stroke::new((size * 0.10).max(1.0), Color32::from_black_alpha(220)) } else { Stroke::NONE };
-+    egui::Area::new(Id::new("virtual-pointer-overlay")).order(Order::Foreground).fixed_pos(center - vec2(size, size)).interactable(false).show(ctx, |ui| {
-+        // Reserve the overlay area; painter-only content otherwise gets clipped to zero size.
-+        ui.set_min_size(vec2(size * 2.0, size * 2.0));
-+        let r = Rect::from_center_size(pos2(size, size), vec2(size * 2.0, size * 2.0));
-+        let p = ui.painter();
-+        match state.cursor.as_str() {
-+            "crosshair" => {
-+                p.line_segment([pos2(size * 0.2, size), pos2(size * 1.8, size)], Stroke::new(2.0, color));
-+                p.line_segment([pos2(size, size * 0.2), pos2(size, size * 1.8)], Stroke::new(2.0, color));
-+            }
-+            "circle" => {
-+                p.circle_filled(r.center(), size * 0.48, color);
-+                p.circle_stroke(r.center(), size * 0.48, outline);
-+            }
-+            "hand" | "grab" => {
-+                p.circle_filled(r.center(), size * 0.48, color);
-+                p.circle_stroke(r.center(), size * 0.48, outline);
-+            }
-+            _ => {
-+                let tip = pos2(size * 0.30, size * 0.18);
-+                let a = pos2(size * 0.30, size * 1.55);
-+                let b = pos2(size * 0.76, size * 1.20);
-+                p.add(Shape::convex_polygon(vec![tip, a, b], color, outline));
-+            }
-+        }
-+        if state.magnifier {
-+            p.circle_stroke(r.center(), size * state.magnification.max(1.0), Stroke::new(1.5, color));
-+        }
-+        if state.click_flash_until > now {
-+            p.circle_stroke(r.center(), size * 0.7, Stroke::new(3.0, Color32::from_rgba_unmultiplied(255, 220, 80, 180)));
-+        }
-+    });
 +}
-+
 +pub fn settings_ui(ui: &mut Ui, state: &mut VirtualPointerState) {
 +    ui.label("Virtual Pointer");
 +    ui.checkbox(&mut state.enabled, "Enabled");
++    ui.checkbox(&mut state.debug_coordinates, "Debug coordinates");
 +    ui.add(egui::Slider::new(&mut state.sensitivity, 0.25..=3.0).text("Sensitivity"));
 +    ui.add(egui::Slider::new(&mut state.acceleration, 0.0..=0.5).text("Acceleration"));
 +    ui.add(egui::Slider::new(&mut state.opacity, 0.2..=1.0).text("Opacity"));
