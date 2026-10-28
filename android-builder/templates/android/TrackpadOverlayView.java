@@ -724,8 +724,18 @@ final class TrackpadOverlayView extends View {
         MotionEvent event = obtainMouseEvent(
                 mouseDownTime == 0L ? now : mouseDownTime, now, action,
                 point[0], point[1], eventButtonState);
-        if (button == MotionEvent.BUTTON_PRIMARY) nativeSurface.dispatchTouchEvent(event);
-        else nativeSurface.dispatchGenericMotionEvent(event);
+        if (button == MotionEvent.BUTTON_PRIMARY) {
+            // Keep the press/release path for long-press dragging. A simple Click uses the
+            // touchscreen path in clickAtCursor() below, which Android/GameActivity handles more
+            // reliably than a mouse-shaped ACTION_DOWN/UP sent through dispatchTouchEvent.
+            nativeSurface.dispatchTouchEvent(event);
+        }
+        else {
+            boolean delivered = nativeSurface.dispatchGenericMotionEvent(event);
+            // SurfaceView may decline generic motion while GameActivity itself still accepts it.
+            // Forward the same Android mouse-button event to the Activity as a fallback.
+            if (!delivered) activity.dispatchGenericMotionEvent(event);
+        }
         event.recycle();
         if (!pressed && mouseButtons == 0) mouseDownTime = 0L;
     }
@@ -748,10 +758,14 @@ final class TrackpadOverlayView extends View {
 
     private void clickAtCursor(boolean rightClick) {
         ensureCursorInitialized();
-        int button = rightClick ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY;
         sendMouseMove(cursorX, cursorY, false);
-        sendMouseButton(button, true, cursorX, cursorY);
-        sendMouseButton(button, false, cursorX, cursorY);
+        if (rightClick) {
+            sendMouseButton(MotionEvent.BUTTON_SECONDARY, true, cursorX, cursorY);
+            sendMouseButton(MotionEvent.BUTTON_SECONDARY, false, cursorX, cursorY);
+        } else {
+            // Use the same touchscreen event sequence as a real finger tap at the virtual cursor.
+            dispatchTouchClick(cursorX, cursorY);
+        }
     }
 
     private void updateAutoLoupe() {
