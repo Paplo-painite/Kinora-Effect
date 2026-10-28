@@ -584,7 +584,7 @@ marker = android_dir / ".artcraft-android-builder-generated"
 # Bump this whenever the generated launcher template changes so stale wrappers (which live in the
 # source checkout and would otherwise be preserved forever) are regenerated automatically instead
 # of failing against a newer app API.
-GENERATOR_VERSION = "46"
+GENERATOR_VERSION = "48"
 
 # A complete adapter supplied by the user wins over auto-detection. This folder is maintained
 # inside the builder, while its contents are copied into this source checkout.
@@ -2661,6 +2661,10 @@ icon = "@mipmap/ic_launcher"
             .replace("__CLASS__", saf["activity"])
             .replace("__TAG__", saf["activity"])
         )
+        if app == "effectcraft":
+            overlay_src = (root / "templates" / "android" / "TrackpadOverlayView.java").read_text().replace("__PACKAGE__", pkg)
+            (staging_dir / "java" / Path(*pkg.split("."))).mkdir(parents=True, exist_ok=True)
+            (staging_dir / "java" / Path(*pkg.split(".")) / "TrackpadOverlayView.java").write_text(overlay_src)
         java_dir = staging_dir / "java" / Path(*pkg.split("."))
         java_dir.mkdir(parents=True, exist_ok=True)
         (java_dir / f"{saf['activity']}.java").write_text(java_src)

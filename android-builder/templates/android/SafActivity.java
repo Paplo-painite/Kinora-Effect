@@ -30,6 +30,8 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.SurfaceView;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -69,6 +71,32 @@ import java.util.concurrent.TimeUnit;
  * hand-edit it in the app checkout. Put persistent customizations in an adapter under adapters/.
  */
 public final class __CLASS__ extends GameActivity {
+    private TrackpadOverlayView kinoraTrackpadOverlay;
+
+    private static SurfaceView findSurfaceView(View view) {
+        if (view instanceof SurfaceView) return (SurfaceView) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                SurfaceView found = findSurfaceView(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private void installKinoraTrackpadOverlay() {
+        if (kinoraTrackpadOverlay != null) return;
+        SurfaceView surface = findSurfaceView(getWindow().getDecorView());
+        if (surface == null) {
+            getWindow().getDecorView().postDelayed(this::installKinoraTrackpadOverlay, 120L);
+            return;
+        }
+        kinoraTrackpadOverlay = new TrackpadOverlayView(this, surface);
+        FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+        addContentView(kinoraTrackpadOverlay, overlayParams);
+    }
     private static final String TAG = "__TAG__";
     private static final int REQ_OPEN = 0x5043;
     private static final int REQ_SAVE = 0x5044;
@@ -379,6 +407,8 @@ public final class __CLASS__ extends GameActivity {
         suppressSelectionHandles();
         installDropTarget();
         imeSetup();
+        // Android-native TP/loupe overlay; it is independent of egui UI scale and maps coordinates to the native surface.
+        installKinoraTrackpadOverlay();
         handleIncomingFiles(getIntent());
     }
 
@@ -402,6 +432,10 @@ public final class __CLASS__ extends GameActivity {
      */
     @Override
     protected void onDestroy() {
+        if (kinoraTrackpadOverlay != null) {
+            kinoraTrackpadOverlay.dispose();
+            kinoraTrackpadOverlay = null;
+        }
         if (isFinishing()) {
             io.shutdown();
             try {
@@ -420,6 +454,7 @@ public final class __CLASS__ extends GameActivity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (kinoraTrackpadOverlay != null) kinoraTrackpadOverlay.onHostFocusChanged(hasFocus);
         if (hasFocus) {
             // Repeated now that the window has been laid out: only then are its insets known,
             // and with them the title bar of a desktop window, which the interface has to stay
