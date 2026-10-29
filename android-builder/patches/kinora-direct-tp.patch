@@ -1,58 +1,29 @@
-[1mdiff --git a/crates/ui-egui/src/lib.rs b/crates/ui-egui/src/lib.rs[m
-[1mindex 72016cc5..d3d27b5e 100644[m
-[1m--- a/crates/ui-egui/src/lib.rs[m
-[1m+++ b/crates/ui-egui/src/lib.rs[m
-[36m@@ -30,6 +30,7 @@[m [mmod pointer_wrap;[m
- pub mod prefs_live;[m
- pub mod state;[m
- pub mod theme;[m
-[32m+[m[32mpub mod virtual_pointer;[m
- pub mod widgets;[m
- mod workspace_state;[m
- [m
-[36m@@ -591,6 +592,25 @@[m [mimpl EffectcraftApp {[m
-         }[m
-     }[m
- [m
-[32m+[m[32m    /// Queue one Android TP event directly for egui. This bypasses Java View dispatch, which[m
-[32m+[m[32m    /// GameActivity does not reliably forward to its native input queue.[m
-[32m+[m[32m    pub fn push_virtual_pointer_event(&mut self, x: f32, y: f32, button: u8, pressed: bool) {[m
-[32m+[m[32m        let pointer_button = match button {[m
-[32m+[m[32m            0 => egui::PointerButton::Primary,[m
-[32m+[m[32m            1 => egui::PointerButton::Middle,[m
-[32m+[m[32m            2 => egui::PointerButton::Secondary,[m
-[32m+[m[32m            _ => return,[m
-[32m+[m[32m        };[m
-[32m+[m[32m        let pos = egui::pos2(x, y);[m
-[32m+[m[32m        self.synthetic.push(egui::Event::PointerMoved(pos));[m
-[32m+[m[32m        self.synthetic.push(egui::Event::PointerButton {[m
-[32m+[m[32m            pos,[m
-[32m+[m[32m            button: pointer_button,[m
-[32m+[m[32m            pressed,[m
-[32m+[m[32m            modifiers: egui::Modifiers::NONE,[m
-[32m+[m[32m        });[m
-[32m+[m[32m    }[m
-[32m+[m
-     /// Show panel `p` (opening it in its usual place if it is closed), bring it to the front and[m
-     /// give it the focus: Window ▸ <panel>.[m
-     pub fn show_panel(&mut self, p: PanelKind) {[m
-[36m@@ -1712,6 +1732,11 @@[m [mimpl EffectcraftApp {[m
-         panels::learn::coach(self, &ctx);[m
-         let lift = panels::media_panels::import_card(self, ui, full);[m
-         self.draw_toast(ui, full, lift);[m
-[32m+[m[32m        // TP is applied last so panel-specific cursor hints do not overwrite the user override.[m
-[32m+[m[32m        if let Some(cursor) = header::tp_cursor_icon(&self.ui.tp_cursor) {[m
-[32m+[m[32m            ctx.set_cursor_icon(cursor);[m
-[32m+[m[32m        }[m
-[32m+[m[32m        virtual_pointer::draw(&mut self.ui.virtual_pointer, &ctx, ctx.input(|i| i.time));[m
-         if self.session.config.is_some() && self.workspace_store.has_changes(&self.ui) && !ctx.input(|i| i.pointer.any_down()) {[m
-             if self.workspace_store.due(ctx.input(|i| i.time)) {[m
-                 self.save_workspace_state();[m
-[36m@@ -1862,6 +1887,7 @@[m [mimpl eframe::App for EffectcraftApp {[m
-     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {[m
-         let injected = !self.synthetic.is_empty();[m
-         self.feed_synthetic(raw_input);[m
-[32m+[m[32m        virtual_pointer::process_input(&mut self.ui.virtual_pointer, raw_input);[m
-         if pointer_wrap::prepare_input(ctx, raw_input, injected) {[m
-             self.session.history.merge_key = None;[m
-         }[m
+diff --git a/crates/ui-egui/src/lib.rs b/crates/ui-egui/src/lib.rs
+--- a/crates/ui-egui/src/lib.rs
++++ b/crates/ui-egui/src/lib.rs
+@@ -591,6 +591,25 @@ impl EffectcraftApp {
+             raw_input.events.extend(self.synthetic.drain(..n));
+         }
+     }
++
++    /// Queue one Android TP event directly for egui. This bypasses Java View dispatch, which
++    /// GameActivity does not reliably forward to its native input queue.
++    pub fn push_virtual_pointer_event(&mut self, x: f32, y: f32, button: u8, pressed: bool) {
++        let pointer_button = match button {
++            0 => egui::PointerButton::Primary,
++            1 => egui::PointerButton::Middle,
++            2 => egui::PointerButton::Secondary,
++            _ => return,
++        };
++        let pos = egui::pos2(x, y);
++        self.synthetic.push(egui::Event::PointerMoved(pos));
++        self.synthetic.push(egui::Event::PointerButton {
++            pos,
++            button: pointer_button,
++            pressed,
++            modifiers: egui::Modifiers::NONE,
++        });
++    }
+
+     /// Show panel `p` (opening it in its usual place if it is closed), bring it to the front and
+     /// give it the focus: Window ▸ <panel>.
