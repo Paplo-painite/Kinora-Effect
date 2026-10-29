@@ -27,6 +27,9 @@ import android.view.ViewConfiguration;
  * When trackpad mode is off and loupe is off, touches outside the floating handle pass through.
  */
 final class TrackpadOverlayView extends View {
+    interface Host {
+        void kinoraTpEvent(float x, float y, int button, boolean pressed);
+    }
     private static final String TAG = "KinoraTrackpad";
     private static final String PREFS = "com.kinora.effect_trackpad";
     private static final long LONG_PRESS_MS = 430L;
@@ -759,6 +762,13 @@ final class TrackpadOverlayView extends View {
     private void clickAtCursor(boolean rightClick) {
         ensureCursorInitialized();
         sendMouseMove(cursorX, cursorY, false);
+        float[] point = toSurface(cursorX, cursorY);
+        if (activity instanceof Host) {
+            Host host = (Host) activity;
+            int button = rightClick ? 2 : 0;
+            host.kinoraTpEvent(point[0], point[1], button, true);
+            host.kinoraTpEvent(point[0], point[1], button, false);
+        }
         if (rightClick) {
             sendMouseButton(MotionEvent.BUTTON_SECONDARY, true, cursorX, cursorY);
             sendMouseButton(MotionEvent.BUTTON_SECONDARY, false, cursorX, cursorY);

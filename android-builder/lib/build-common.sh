@@ -484,6 +484,7 @@ if [[ "$APP" == "effectcraft" ]]; then
         "$ROOT/patches/kinora-desktop-fixed.patch"
         "$ROOT/patches/kinora-workspace-fit.patch"
         "$ROOT/patches/kinora-touch-pointer.patch"
+        "$ROOT/patches/kinora-direct-tp.patch"
     )
     # Validate every patch first, so a stale patch cannot leave a half-patched checkout.
     for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
@@ -584,7 +585,7 @@ marker = android_dir / ".artcraft-android-builder-generated"
 # Bump this whenever the generated launcher template changes so stale wrappers (which live in the
 # source checkout and would otherwise be preserved forever) are regenerated automatically instead
 # of failing against a newer app API.
-GENERATOR_VERSION = "49"
+GENERATOR_VERSION = "50"
 
 # A complete adapter supplied by the user wins over auto-detection. This folder is maintained
 # inside the builder, while its contents are copied into this source checkout.
