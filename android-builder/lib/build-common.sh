@@ -585,7 +585,7 @@ marker = android_dir / ".artcraft-android-builder-generated"
 # Bump this whenever the generated launcher template changes so stale wrappers (which live in the
 # source checkout and would otherwise be preserved forever) are regenerated automatically instead
 # of failing against a newer app API.
-GENERATOR_VERSION = "52"
+GENERATOR_VERSION = "53"
 
 # A complete adapter supplied by the user wins over auto-detection. This folder is maintained
 # inside the builder, while its contents are copied into this source checkout.
@@ -2914,8 +2914,8 @@ fn poll_kinora_tp(app: &AndroidApp, inner: &mut EffectcraftApp) {
                 .call_method(&*activity, jni_str!("kinoraTpPoll"), jni_sig!("()Ljava/lang/String;"), &[])?
                 .l()?;
             if value.is_null() { break; }
-            let value: JString = value.into();
-            let text = env.get_string(&value)?.to_string_lossy().into_owned();
+            let value = env.cast_local::<JString>(value)?;
+            let text: String = env.get_string(&value)?.into();
             if text.is_empty() { break; }
             let event: serde_json::Value = match serde_json::from_str(&text) {
                 Ok(value) => value,
