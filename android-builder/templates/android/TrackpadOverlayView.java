@@ -659,6 +659,14 @@ final class TrackpadOverlayView extends View {
         return surfacePoint;
     }
 
+    /** Convert Android surface pixels to the logical points used by egui/winit. */
+    private float[] toEguiPoint(float overlayX, float overlayY) {
+        float[] point = toSurface(overlayX, overlayY);
+        surfacePoint[0] = point[0] / Math.max(1f, density);
+        surfacePoint[1] = point[1] / Math.max(1f, density);
+        return surfacePoint;
+    }
+
     private void dispatchTouchCopy(MotionEvent event, boolean asCancel) {
         if (nativeSurface == null) return;
         MotionEvent copy = MotionEvent.obtain(event);
@@ -762,19 +770,15 @@ final class TrackpadOverlayView extends View {
     private void clickAtCursor(boolean rightClick) {
         ensureCursorInitialized();
         sendMouseMove(cursorX, cursorY, false);
-        float[] point = toSurface(cursorX, cursorY);
+        // Use one deterministic path for a click. dispatchTouchEvent() is not reliably delivered
+        // by SurfaceView/GameActivity when called programmatically, and sending both paths caused
+        // duplicate or misplaced clicks. The Rust bridge consumes egui logical points directly.
+        float[] point = toEguiPoint(cursorX, cursorY);
         if (activity instanceof Host) {
             Host host = (Host) activity;
             int button = rightClick ? 2 : 0;
             host.kinoraTpEvent(point[0], point[1], button, true);
             host.kinoraTpEvent(point[0], point[1], button, false);
-        }
-        if (rightClick) {
-            sendMouseButton(MotionEvent.BUTTON_SECONDARY, true, cursorX, cursorY);
-            sendMouseButton(MotionEvent.BUTTON_SECONDARY, false, cursorX, cursorY);
-        } else {
-            // Use the same touchscreen event sequence as a real finger tap at the virtual cursor.
-            dispatchTouchClick(cursorX, cursorY);
         }
     }
 
