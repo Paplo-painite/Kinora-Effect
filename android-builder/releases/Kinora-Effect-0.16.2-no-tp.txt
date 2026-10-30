@@ -1,0 +1,6 @@
+Kinora Effect v0.16.2
+
+Android release without the TP virtual mouse feature.
+The TP pointer, blue mouse overlay, Click/Right floating controls, loupe overlay, and TP event bridge were removed. Normal touch input remains unchanged.
+
+SHA-256 is provided in the matching .sha256 file.
