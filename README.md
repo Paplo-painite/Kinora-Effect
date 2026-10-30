@@ -4,6 +4,10 @@
 [![License](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 [![Android](https://img.shields.io/badge/platform-Android-3ddc84.svg)](https://github.com/Paplo-painite/Kinora-Effect/releases)
 
+<p align="center">
+  <img src="assets/kinora-effect-repository-icon.png" alt="Kinora Effect icon" width="180">
+</p>
+
 **Kinora Effect** is an open-source motion graphics and visual effects editor for Android. It brings a desktop-style creative workspace to touch devices while keeping the panels, composition viewer, timeline, and familiar editing workflow together in one place.
 
 The project is maintained by **Paplo-painite**, with assistance from **Manus AI**.
@@ -26,6 +30,8 @@ The current release is **v0.16.2**. It includes the current Kinora Effect artwor
 - Android file open/save support through the system file picker.
 - Custom Kinora Effect launcher artwork and in-app branding.
 - Built-in release update notification when a newer public version is available.
+
+The repository artwork is available at [`assets/kinora-effect-repository-icon.png`](assets/kinora-effect-repository-icon.png). It is shown here as the project identity image and is separate from the editor's tool icons.
 
 ## Quick start
 
