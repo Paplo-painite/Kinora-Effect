@@ -175,15 +175,20 @@ public final class UpdateCheck {
     private static void showDialog(Activity activity, String version) {
         try {
             new AlertDialog.Builder(activity)
-                    .setTitle("Kinora Effect update available")
-                    .setMessage("Version " + version + " is available. Download it to update this app.")
-                    .setPositiveButton("Download", new android.content.DialogInterface.OnClickListener() {
+                    .setIcon(activity.getApplicationInfo().icon)
+                    .setTitle("Kinora Effect — New version available")
+                    .setMessage("A newer version is ready to install.\n\n"
+                            + "Current version: " + BUILDER_VERSION + "\n"
+                            + "New version: " + version + "\n\n"
+                            + "Get the latest improvements and fixes from the official GitHub release.")
+                    .setPositiveButton("View update", new android.content.DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(android.content.DialogInterface dialog, int which) {
                             openDownloadPage(activity);
                         }
                     })
                     .setNegativeButton("Later", null)
+                    .setOnCancelListener(null)
                     .show();
         } catch (Throwable error) {
             Log.i(TAG, "Could not show the update dialog: " + error);

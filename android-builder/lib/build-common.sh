@@ -3959,6 +3959,26 @@ else:
 PY
 )"
 
+# Rewrite the already-installed checker with the app's real version. The shared template is
+# installed earlier because generated and adapter launchers are prepared at different stages, but
+# comparing against the builder's internal version (0.1.0) would make every Kinora release look
+# newer than it is.
+if [[ -d "$ANDROID_DIR/java/com/artcraft/updater" ]]; then
+    python3 - "$ROOT/templates/android/UpdateCheck.java" "$ANDROID_DIR/java/com/artcraft/updater/UpdateCheck.java" \
+        "$APP_VERSION" "$UPDATE_API_URL" "$UPDATE_PAGE_URL" <<'PY'
+from pathlib import Path
+import sys
+source, target, version, api_url, page_url = sys.argv[1:6]
+text = Path(source).read_text()
+text = (
+    text.replace("__BUILDER_VERSION__", version)
+    .replace("__UPDATE_API_URL__", api_url)
+    .replace("__UPDATE_PAGE_URL__", page_url)
+)
+Path(target).write_text(text)
+PY
+fi
+
 # The shared craft-fonts (https://github.com/storytold/craft-fonts) are an optional build input
 # for the apps that embed them (WordCraft, PdfCraft): with `CRAFT_FONTS_DIR` pointing at a
 # checkout, their fonts crate embeds the faces listed in that checkout's `fonts/manifest.txt`.
