@@ -467,7 +467,13 @@ else
         rm -rf "$SRC_TMP"
         fail "Only $((FREE_BYTES / 1048576)) MiB are free on the disk holding $ROOT/source, but cloning $TITLE needs about 1 GiB. Free some space (build/ holds the Cargo output of every app) and run the build again."
     fi
-    if ! git clone --depth 1 "$REPO" "$SRC_TMP"; then
+    # Kinora's patches target the v0.16.0 API and must not silently drift with upstream main.
+    if [[ "$APP" == "effectcraft" ]]; then
+        CLONE_ARGS=(--depth 1 --branch v0.16.0)
+    else
+        CLONE_ARGS=(--depth 1)
+    fi
+    if ! git clone "${CLONE_ARGS[@]}" "$REPO" "$SRC_TMP"; then
         rm -rf "$SRC_TMP"
         fail "Cloning $REPO failed. Check the network connection and the free disk space, then run the build again."
     fi
