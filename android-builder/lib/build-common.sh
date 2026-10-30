@@ -492,32 +492,20 @@ if [[ "$APP" == "effectcraft" ]]; then
         "$ROOT/patches/kinora-branding.patch"
         "$ROOT/patches/kinora-name.patch"
     )
-    # Validate every patch first, so a stale patch cannot leave a half-patched checkout.
+    # Apply patches in order. Some patches intentionally share header.rs context, so validating
+    # every patch against the pristine checkout before applying any of them gives false conflicts.
+    # Sequential validation preserves the all-or-nothing check for each individual patch.
     for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
         [[ -s "$KINORA_PATCH" ]] || fail "Kinora patch is missing: $KINORA_PATCH"
-        # workspace-fit and touch-pointer both edit header.rs. Once touch has been applied,
-        # reversing the larger workspace patch cannot pass git's all-or-nothing check even though
-        # its unique workspace marker is already present. Treat that known composed state as done.
-        if [[ "${KINORA_PATCH##*/}" == "kinora-workspace-fit.patch" ]] \
-            && grep -q '"Kinora Fit"' "$SRC/crates/ui-egui/src/dock.rs"; then
-            continue
-        fi
-        if ! git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1 \
-            && ! git -C "$SRC" apply --reverse --check "$KINORA_PATCH" >/dev/null 2>&1; then
-            fail "Kinora patch ${KINORA_PATCH##*/} does not match this EffectCraft source revision; update the patch before building. No patches were applied."
-        fi
     done
     for KINORA_PATCH in "${KINORA_PATCHES[@]}"; do
-        if [[ "${KINORA_PATCH##*/}" == "kinora-workspace-fit.patch" ]] \
-            && grep -q '"Kinora Fit"' "$SRC/crates/ui-egui/src/dock.rs"; then
-            echo "Kinora patch already present: ${KINORA_PATCH##*/} (composed with touch-pointer)"
-            continue
-        fi
         if git -C "$SRC" apply --check "$KINORA_PATCH" >/dev/null 2>&1; then
             git -C "$SRC" apply "$KINORA_PATCH" || fail "Could not apply Kinora patch ${KINORA_PATCH##*/}."
             echo "Applied Kinora patch: ${KINORA_PATCH##*/}"
-        else
+        elif git -C "$SRC" apply --reverse --check "$KINORA_PATCH" >/dev/null 2>&1; then
             echo "Kinora patch already present: ${KINORA_PATCH##*/}"
+        else
+            fail "Kinora patch ${KINORA_PATCH##*/} does not match the current sequential source state."
         fi
     done
 fi
