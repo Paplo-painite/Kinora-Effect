@@ -606,7 +606,12 @@ if (custom / "Cargo.toml").is_file() and (custom / "src" / "lib.rs").is_file():
     # API 26+ adaptive layers (see lib/app_icons.py).
     import app_icons
 
-    app_icons.generate(src, app, android_dir / "res", Path(appicon) if appicon else None)
+    # EffectCraft owns a repository-level Kinora icon. Pass it explicitly so a cached
+    # adapter icon can never silently replace the user-supplied launcher artwork.
+    icon_source = Path(appicon) if appicon else None
+    if app == "effectcraft":
+        icon_source = root / "../assets/kinora-icon.png"
+    app_icons.generate(src, app, android_dir / "res", icon_source)
     # Advertise the app's file associations (Android open/share intent filters) in the copied
     # manifest, from the same table the generated launchers use.
     file_associations.patch_cargo_toml(android_dir / "Cargo.toml", app)
@@ -2523,7 +2528,10 @@ if staging_dir.exists():
     shutil.rmtree(staging_dir)
 staging_dir.mkdir(parents=True)
 try:
-    icon = app_icons.generate(src, app, staging_dir / "res", Path(appicon) if appicon else None)
+    icon_source = Path(appicon) if appicon else None
+    if app == "effectcraft":
+        icon_source = root / "../assets/kinora-icon.png"
+    icon = app_icons.generate(src, app, staging_dir / "res", icon_source)
 
     serde_dep = 'serde_json = { workspace = true }\n' if (saf or _persist) else ''
     # The SAF bridge for rfd-driven apps (pdfcraft) calls `rfd::artcraft_saf` from the launcher, so
