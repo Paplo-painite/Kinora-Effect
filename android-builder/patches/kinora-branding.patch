@@ -1,0 +1,69 @@
+--- a/crates/engine/src/links.rs
++++ b/crates/engine/src/links.rs
+@@ -7,6 +7,8 @@
+ pub const WEBSITE: &str = "https://getartcraft.com";
+ pub const APP_PAGE: &str = "https://getartcraft.com/apps/effectcraft";
+ pub const GITHUB: &str = "https://github.com/storytold/effectcraft";
++/// Kinora Effect maintainer profile.
++pub const KINORA_GITHUB: &str = "https://github.com/Paplo-painite";
+ pub const ISSUES: &str = "https://github.com/storytold/effectcraft/issues";
+
+ /// Sibling apps of the ArtCraft family: (name, what it is, GitHub repo, app page).
+--- a/crates/ui-egui/src/header.rs
++++ b/crates/ui-egui/src/header.rs
+@@ -1,5 +1,5 @@
+ //! The Tools bar: home, the tool slots, tool options, snapping, workspaces and the community
+-//! buttons (Discord is always one click away).
++//! buttons (GitHub is always one click away).
+
+ use crate::i18n::{tr, tr_args};
+ use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+@@ -189,20 +189,20 @@
+     if !compact_header {
+         // The pill fits its label (icon, gap, text) with even padding: it was a fixed 104 px with the
+         // text at its left, which left a wide gap on the right (#581).
+-        let label = p.layout_no_wrap(tr("Discord").to_string(), Tokens::semibold(12.0), Color32::WHITE);
+-        let discord = Rect::from_min_max(pos2(rx - (10.0 + 14.0 + 6.0 + label.size().x + 12.0), cy - 13.0), pos2(rx, cy + 13.0));
+-        let dresp = ui.interact(discord, egui::Id::new("hdr-discord"), Sense::click());
+-        let dc = Color32::from_rgb(0x58, 0x65, 0xf2);
+-        p.rect_filled(discord, 13.0, if dresp.hovered() { dc.gamma_multiply(1.2) } else { dc });
+-        icons::paint(&p, Rect::from_center_size(pos2(discord.min.x + 17.0, cy), vec2(14.0, 14.0)), Icon::Chat, Color32::WHITE);
+-        p.galley(pos2(discord.min.x + 30.0, cy - label.size().y / 2.0), label, Color32::WHITE);
+-        app.auto.add("header.discord", discord, "Join the ArtCraft Discord");
+-        if dresp.on_hover_text(tr("Join the ArtCraft community on Discord")).clicked() {
+-            let _ = app.session.execute("help.discord", json!({}));
++        let label = p.layout_no_wrap("GitHub".to_string(), Tokens::semibold(12.0), Color32::WHITE);
++        let github = Rect::from_min_max(pos2(rx - (10.0 + 14.0 + 6.0 + label.size().x + 12.0), cy - 13.0), pos2(rx, cy + 13.0));
++        let gresp = ui.interact(github, egui::Id::new("hdr-github-profile"), Sense::click());
++        let gc = Color32::from_rgb(0x24, 0x2a, 0x36);
++        p.rect_filled(github, 13.0, if gresp.hovered() { gc.gamma_multiply(1.25) } else { gc });
++        icons::paint(&p, Rect::from_center_size(pos2(github.min.x + 17.0, cy), vec2(14.0, 14.0)), Icon::Code, Color32::WHITE);
++        p.galley(pos2(github.min.x + 30.0, cy - label.size().y / 2.0), label, Color32::WHITE);
++        app.auto.add("header.githubProfile", github, "Paplo-painite on GitHub");
++        if gresp.on_hover_text("Open Paplo-painite on GitHub").clicked() {
++            ui.ctx().open_url(egui::OpenUrl::new_tab(effectcraft_engine::links::KINORA_GITHUB));
+         }
+-        rx = discord.min.x - 6.0;
++        rx = github.min.x - 6.0;
+         for (id, icon, tip, cmd) in
+-            [("hdr-github", Icon::Code, "EffectCraft on GitHub", "help.github"), ("hdr-web", Icon::Globe, "EffectCraft on getartcraft.com", "help.appPage")]
++            [("hdr-web", Icon::Globe, "EffectCraft on getartcraft.com", "help.appPage")]
+         {
+             let r = Rect::from_min_max(pos2(rx - 26.0, cy - 13.0), pos2(rx, cy + 13.0));
+             if widgets::icon_button(ui, r, icon, false, &t, egui::Id::new(id)).on_hover_text(tip).clicked() {
+--- a/crates/ui-egui/src/panels/dialogs.rs
++++ b/crates/ui-egui/src/panels/dialogs.rs
+@@ -337,6 +337,13 @@
+     );
+     ui.add_space(12.0);
+     ui.label(tr("A clean-room, open-source compositor for motion graphics and visual effects: native on macOS, Windows and Linux, and in the browser. Part of the ArtCraft family of creative apps."));
++    ui.add_space(8.0);
++    ui.horizontal_wrapped(|ui| {
++        ui.label(egui::RichText::new("Built by").color(t.text_dim));
++        ui.hyperlink_to("Paplo-painite", effectcraft_engine::links::KINORA_GITHUB);
++        ui.label(egui::RichText::new("with assistance from").color(t.text_dim));
++        ui.hyperlink_to("Manus AI", "https://manus.im");
++    });
+     ui.add_space(14.0);
+     let links: [(Icon, &str, &str, &'static str); 4] = [
+         (Icon::Chat, "Join the ArtCraft Discord", effectcraft_engine::links::DISCORD, "help.discord"),
