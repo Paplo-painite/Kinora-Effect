@@ -1,34 +1,79 @@
-# Kinora Effect for Android
+# Kinora Effect
 
-This repository builds the open-source **EffectCraft** application for Android under the Kinora brand. The Android app is displayed as **Kinora Effect**, uses package ID `com.kinora.effect`, and includes a custom launcher icon. This repository fetches the official EffectCraft source during the build and packages it with a customized Android builder.
+[![Latest release](https://img.shields.io/github/v/release/Paplo-painite/Kinora-Effect?display_name=tag&sort=semver&label=latest%20release)](https://github.com/Paplo-painite/Kinora-Effect/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
+[![Android](https://img.shields.io/badge/platform-Android-3ddc84.svg)](https://github.com/Paplo-painite/Kinora-Effect/releases)
 
-## Build
+**Kinora Effect** is an open-source motion graphics and visual effects editor for Android. It brings a desktop-style creative workspace to touch devices while keeping the panels, composition viewer, timeline, and familiar editing workflow together in one place.
 
-```bash
-./build.sh       # Locally signed release APK
-./build-debug.sh # Debug APK
-```
+The project is maintained by **Paplo-painite**, with assistance from **Manus AI**.
 
-APK files are written to `android-builder/output/`, with names such as `kinora-effect-<version>.apk`. Building requires Linux x86_64, Rust 1.95 or newer, Java 17–23, and an internet connection. The builder downloads the Android SDK and JDK when they are not already available. Pass `-appicon=/path/to/icon.png` to use a different launcher icon.
+## Download
 
-The Kinora artwork is used both for the Android launcher icon and for the EffectCraft application mark shown inside the UI and About dialog. The editor's tool icons are intentionally unchanged.
+Download the latest public Android release from the official [GitHub Releases page](https://github.com/Paplo-painite/Kinora-Effect/releases/latest).
 
-The builder stores its signing key locally at `android-builder/keys/kinora-effect.jks`. Keep this key to install future APKs signed with the same key, and do not commit it to GitHub. This local key is not an official Google Play release key.
+The current release is **v0.16.2**. It includes the current Kinora Effect artwork and the normal touch interface. Before installing an update, remove an older test build if Android reports a signature or installation conflict.
 
-## Android display mode
+## Highlights
 
-On Android, Kinora Effect keeps the desktop workspace layout: the desktop menu bar, toolbar, docked panels, and saved workspace arrangement. The Android activity opens in landscape orientation. It does not switch to a phone-only tab bar or rewrite the saved desktop dock.
+- Desktop-style workspace with docked panels and saved layouts.
+- Composition viewer for previewing visual work.
+- Timeline-based editing workflow.
+- Project, layer, effect, property, audio, and render panels.
+- UI Scale controls for small screens, from 50% to 200%.
+- A **Fit** option and **Kinora Fit** workspace for making the desktop layout more comfortable on phones.
+- Landscape workspace designed for touch-first Android use.
+- Android file open/save support through the system file picker.
+- Custom Kinora Effect launcher artwork and in-app branding.
+- Built-in release update notification when a newer public version is available.
 
-Adjust the app's interface size at **Settings > Appearance > UI Scale**. The setting is available from 50% to 200%, is saved as an app preference, and changes the interface scale without changing the phone's system DPI. Lower values fit more of the desktop workspace on the phone; higher values make controls larger.
+## Quick start
 
-The desktop toolbar also provides **−** and **+** controls to decrease or increase UI Scale in 10% steps. **Fit** chooses a scale based on the available screen width and switches to the **Kinora Fit** workspace, which keeps the desktop panels while reserving more center width for Composition. Select another workspace, such as **Default**, to return to its layout.
+1. Install the APK from the latest release.
+2. Open **Kinora Effect** and allow the application to finish loading its workspace.
+3. Open or create a project from the application menu.
+4. Use the **Composition** panel to view the result, the **Timeline** to arrange animated content, and the side panels to edit layers and properties.
+5. Save regularly using the application’s save command.
+6. Use the render/export controls when the project is ready.
 
-## Scope and status
+For the complete walkthrough, read the [User Guide](docs/USER_GUIDE.md).
 
-The application source is the [official EffectCraft repository](https://github.com/storytold/effectcraft), which is open source and still in alpha. Kinora applies Android-specific compatibility fixes and preserves the desktop workspace on Android; it does not add Adobe After Effects features or claim to fix every upstream issue. A successful build does not verify every feature on every device, so test the APK on a physical Android device.
+## Interface and touch tips
 
-The app checks for new versions on the [Kinora Effect Releases](https://github.com/Paplo-painite/Kinora-Effect/releases) page. Updates will not be offered until releases with `vX.Y.Z` tags and compatible APK files are published there.
+Kinora Effect uses a desktop-style layout. If controls look too small:
 
-## Licensing and sources
+- Open **Settings > Appearance > UI Scale** and increase the scale.
+- Use the **+** and **−** controls in the header for quick 10% adjustments.
+- Use **Fit** to choose a screen-friendly scale and the **Kinora Fit** workspace.
+- Rotate the device to landscape for the most comfortable workspace.
+- Use a precise, short tap on small controls and drag directly on timeline handles or panel dividers.
 
-Kinora-specific source and documentation files are licensed under MIT. The launcher image at `assets/kinora-icon.png` was supplied by the repository owner; its license was not separately specified and it is excluded from the MIT grant. The `android-builder/` directory contains code from [artcraft-android](https://github.com/MostafaXS1/artcraft-android), with its original MIT notice retained. EffectCraft is fetched from its repository during builds and is licensed under MIT OR Apache-2.0. Dependencies retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the included license files.
+The app uses the device’s normal touch input. The TP virtual mouse and its overlay controls are not part of this release.
+
+## Project status
+
+Kinora Effect is an active open-source project based on the EffectCraft creative application. It is still evolving, so some features may behave differently across Android devices. Please test important projects on a copy and report reproducible issues with device model, Android version, release version, and steps to reproduce.
+
+- [Report a bug](https://github.com/Paplo-painite/Kinora-Effect/issues/new?template=bug_report.md)
+- [Request a feature](https://github.com/Paplo-painite/Kinora-Effect/issues/new?template=feature_request.md)
+- [View discussions and issues](https://github.com/Paplo-painite/Kinora-Effect/issues)
+
+## Documentation
+
+- [English User Guide](docs/USER_GUIDE.md)
+- [Changelog](android-builder/CHANGELOG.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+
+## Open-source and licensing
+
+Kinora-specific source and documentation are available under the MIT License. The project includes upstream code and dependencies with their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the accompanying license files. The Kinora launcher artwork is supplied by the repository owner and is not covered by the general MIT grant unless separately stated.
+
+## Credits
+
+- **Kinora Effect:** Paplo-painite
+- **AI assistance:** Manus AI
+- **Upstream creative application:** EffectCraft
+
+If Kinora Effect helps your work, consider starring the repository and sharing a reproducible issue or improvement with the community.
