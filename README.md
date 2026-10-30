@@ -33,6 +33,14 @@ The current release is **v0.16.2**. It includes the current Kinora Effect artwor
 
 The repository artwork is available at [`assets/kinora-effect-repository-icon.png`](assets/kinora-effect-repository-icon.png). It is shown here as the project identity image and is separate from the editor's tool icons.
 
+## Project preview
+
+<p align="center">
+  <img src="assets/screenshots/kinora-effect-preview.png" alt="Kinora Effect project preview" width="420">
+</p>
+
+The preview image shows the Kinora Effect visual identity and desktop-style editing workspace on Android.
+
 ## Quick start
 
 1. Install the APK from the latest release.
