@@ -1,0 +1,54 @@
+--- a/crates/engine/src/links.rs
++++ b/crates/engine/src/links.rs
+@@ -1,7 +1,7 @@
+ //! Community and project links (shown in Help ▸, the About dialog, the start screen and the
+ //! header's Discord button).
+
+-pub const APP_NAME: &str = "EffectCraft";
++pub const APP_NAME: &str = "Kinora Effect";
+ pub const APP_SLUG: &str = "effectcraft";
+ pub const DISCORD: &str = "https://discord.gg/artcraft";
+ pub const WEBSITE: &str = "https://getartcraft.com";
+--- a/crates/ui-egui/src/header.rs
++++ b/crates/ui-egui/src/header.rs
+@@ -28,9 +28,9 @@
+     let brand = Rect::from_min_size(pos2(x, cy - 12.0), vec2(24.0, 24.0));
+     paint_logo(&p, brand);
+     let bresp = ui.interact(brand, egui::Id::new("brand"), Sense::click());
+-    app.auto.add_response("header.about", &bresp, "About EffectCraft");
++    app.auto.add_response("header.about", &bresp, "About Kinora Effect");
+     widgets::focus_outline(ui, &bresp, &t);
+-    if bresp.on_hover_text(tr("About EffectCraft")).clicked() {
++    if bresp.on_hover_text("About Kinora Effect").clicked() {
+         app.dialog = Some(Dialog::About);
+     }
+     x += 32.0;
+--- a/crates/ui-egui/src/panels/dialogs.rs
++++ b/crates/ui-egui/src/panels/dialogs.rs
+@@ -274,7 +274,7 @@
+     let mut close = false;
+     let mut cmd: Option<&str> = None;
+     let tab_id = egui::Id::new("about_tab");
+-    modal(ctx, "About EffectCraft", vec2(680.0, 520.0), t, |ui| {
++    modal(ctx, "About Kinora Effect", vec2(680.0, 520.0), t, |ui| {
+         let mut tab = ui.data_mut(|d| d.get_temp::<usize>(tab_id)).unwrap_or(0);
+         ui.horizontal(|ui| {
+             for (i, (label, id)) in ABOUT_TABS.iter().enumerate() {
+@@ -327,7 +327,7 @@
+     let p = ui.painter();
+     p.rect_filled(r, 10.0, Color32::from_rgb(0x1b, 0x22, 0x3c));
+     crate::header::paint_logo(p, Rect::from_min_size(r.min + vec2(18.0, 20.0), vec2(56.0, 56.0)));
+-    p.text(r.min + vec2(90.0, 34.0), Align2::LEFT_CENTER, "EffectCraft", Tokens::semibold(24.0), Color32::WHITE);
++    p.text(r.min + vec2(90.0, 34.0), Align2::LEFT_CENTER, "Kinora Effect", Tokens::semibold(24.0), Color32::WHITE);
+     p.text(
+         r.min + vec2(90.0, 62.0),
+         Align2::LEFT_CENTER,
+@@ -348,7 +348,7 @@
+     let links: [(Icon, &str, &str, &'static str); 4] = [
+         (Icon::Chat, "Join the ArtCraft Discord", effectcraft_engine::links::DISCORD, "help.discord"),
+         (Icon::Globe, "ArtCraft website", effectcraft_engine::links::WEBSITE, "help.website"),
+-        (Icon::Sparkle, "EffectCraft home page", effectcraft_engine::links::APP_PAGE, "help.appPage"),
++        (Icon::Sparkle, "Kinora Effect home page", effectcraft_engine::links::APP_PAGE, "help.appPage"),
+         (Icon::Code, "Source code on GitHub", effectcraft_engine::links::GITHUB, "help.github"),
+     ];
+     for (icon, label, url, c) in links {
