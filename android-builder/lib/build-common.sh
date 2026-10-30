@@ -489,8 +489,6 @@ if [[ "$APP" == "effectcraft" ]]; then
         "$ROOT/patches/kinora-new-comp-from-footage.patch"
         "$ROOT/patches/kinora-desktop-fixed.patch"
         "$ROOT/patches/kinora-workspace-fit.patch"
-        "$ROOT/patches/kinora-touch-pointer.patch"
-        "$ROOT/patches/kinora-direct-tp.patch"
         "$ROOT/patches/kinora-branding.patch"
         "$ROOT/patches/kinora-name.patch"
     )
@@ -605,7 +603,7 @@ marker = android_dir / ".artcraft-android-builder-generated"
 # Bump this whenever the generated launcher template changes so stale wrappers (which live in the
 # source checkout and would otherwise be preserved forever) are regenerated automatically instead
 # of failing against a newer app API.
-GENERATOR_VERSION = "58"
+GENERATOR_VERSION = "59"
 
 # A complete adapter supplied by the user wins over auto-detection. This folder is maintained
 # inside the builder, while its contents are copied into this source checkout.
@@ -2690,10 +2688,6 @@ icon = "@mipmap/ic_launcher"
             .replace("__CLASS__", saf["activity"])
             .replace("__TAG__", saf["activity"])
         )
-        if app == "effectcraft":
-            overlay_src = (root / "templates" / "android" / "TrackpadOverlayView.java").read_text().replace("__PACKAGE__", pkg)
-            (staging_dir / "java" / Path(*pkg.split("."))).mkdir(parents=True, exist_ok=True)
-            (staging_dir / "java" / Path(*pkg.split(".")) / "TrackpadOverlayView.java").write_text(overlay_src)
         java_dir = staging_dir / "java" / Path(*pkg.split("."))
         java_dir.mkdir(parents=True, exist_ok=True)
         (java_dir / f"{saf['activity']}.java").write_text(java_src)
@@ -2929,35 +2923,6 @@ fn device_is_phone(app: &AndroidApp) -> Option<bool> {
             None
         }
     }
-}
-
-/// Drain TP events queued by the Java overlay and translate them directly to egui.
-fn poll_kinora_tp(app: &AndroidApp, inner: &mut EffectcraftApp) {
-    let jvm = unsafe { JavaVM::from_raw(app.vm_as_ptr() as *mut _) };
-    let activity_raw = app.activity_as_ptr() as jni::sys::jobject;
-    let result = jvm.attach_current_thread(|env| -> jni::errors::Result<()> {
-        let activity = unsafe { env.as_cast_raw::<JObject>(&activity_raw)? };
-        for _ in 0..32 {
-            let value = env
-                .call_method(&*activity, jni_str!("kinoraTpPoll"), jni_sig!("()Ljava/lang/String;"), &[])?
-                .l()?;
-            if value.is_null() { break; }
-            let value = env.cast_local::<JString>(value)?;
-            let text: String = env.get_string(&value)?.into();
-            if text.is_empty() { break; }
-            let event: serde_json::Value = match serde_json::from_str(&text) {
-                Ok(value) => value,
-                Err(error) => { log::warn!("Invalid Kinora TP event: {error}"); continue; }
-            };
-            let Some(x) = event["x"].as_f64().map(|v| v as f32) else { continue };
-            let Some(y) = event["y"].as_f64().map(|v| v as f32) else { continue };
-            let Some(button) = event["button"].as_u64().map(|v| v as u8) else { continue };
-            let Some(pressed) = event["pressed"].as_bool() else { continue };
-            inner.push_virtual_pointer_event(x, y, button, pressed);
-        }
-        Ok(())
-    });
-    if let Err(error) = result { log::debug!("Kinora TP event poll unavailable: {error}"); }
 }
 
 /// Reconstruct egui's modifier state on Android.
@@ -3489,7 +3454,6 @@ impl eframe::App for AndroidShell {{
     }}
 
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {{
-        poll_kinora_tp(&self.app, &mut self.inner);
         self.probe.observe(raw);
         self.ime.poll(raw);
         self.refresh_fullscreen(raw);
