@@ -95,7 +95,7 @@ case "$APP" in
     filmcraft) TITLE="FilmCraft" ;;
     lightcraft) TITLE="LightCraft" ;;
     pdfcraft) TITLE="PdfCraft" ;;
-    effectcraft) TITLE="EffectCraft" ;;
+    effectcraft) TITLE="Kinora" ;;
     designcraft) TITLE="DesignCraft" ;;
     figcraft) TITLE="FigCraft" ;;
     wordcraft) TITLE="WordCraft" ;;
