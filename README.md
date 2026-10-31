@@ -76,6 +76,7 @@ Kinora Effect is an active open-source project based on the EffectCraft creative
 ## Documentation
 
 - [English User Guide](docs/USER_GUIDE.md)
+- [AI Development Context](docs/AI_DEVELOPMENT_CONTEXT.md)
 - [Changelog](android-builder/CHANGELOG.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Contributing](CONTRIBUTING.md)
