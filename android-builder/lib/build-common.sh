@@ -489,6 +489,7 @@ if [[ "$APP" == "effectcraft" ]]; then
         "$ROOT/patches/kinora-new-comp-from-footage.patch"
         "$ROOT/patches/kinora-desktop-fixed.patch"
         "$ROOT/patches/kinora-workspace-fit.patch"
+        "$ROOT/patches/kinora-touch-pointer.patch"
         "$ROOT/patches/kinora-branding.patch"
         "$ROOT/patches/kinora-name.patch"
     )
