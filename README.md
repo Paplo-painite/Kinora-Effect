@@ -1,6 +1,7 @@
 # Kinora Effect
 
 [![Latest release](https://img.shields.io/github/v/release/Paplo-painite/Kinora-Effect?display_name=tag&sort=semver&label=latest%20release)](https://github.com/Paplo-painite/Kinora-Effect/releases/latest)
+[![Repository checks](https://github.com/Paplo-painite/Kinora-Effect/actions/workflows/repository-checks.yml/badge.svg)](https://github.com/Paplo-painite/Kinora-Effect/actions/workflows/repository-checks.yml)
 [![License](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 [![Android](https://img.shields.io/badge/platform-Android-3ddc84.svg)](https://github.com/Paplo-painite/Kinora-Effect/releases)
 
