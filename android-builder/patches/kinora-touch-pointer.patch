@@ -176,6 +176,8 @@
 +    pub click_flash_until: f64,
 +    #[serde(skip)]
 +    pub pending_button: u8,
++    #[serde(skip)]
++    pub was_enabled: bool,
 +}
 +
 +fn default_pos() -> [f32; 2] {
@@ -237,6 +239,7 @@
 +            last_click_time: 0.0,
 +            click_flash_until: 0.0,
 +            pending_button: 0,
++            was_enabled: false,
 +        }
 +    }
 +}
@@ -271,7 +274,25 @@
 +/// Converts one-finger touchpad gestures into egui mouse events. Two-finger input is untouched.
 +pub fn process_input(state: &mut VirtualPointerState, raw: &mut egui::RawInput) {
 +    if !state.enabled {
++        state.was_enabled = false;
 +        return;
++    }
++    let bounds = raw.screen_rect.unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1000.0, 700.0)));
++    // Recover safely from old saved positions that placed the pointer at (0, 0).
++    if !state.was_enabled {
++        if state.pos[0] <= 4.0 || state.pos[1] <= 4.0 {
++            let center = bounds.center();
++            state.pos = [center.x, center.y];
++        }
++        if state.opacity < 0.05 {
++            state.opacity = 1.0;
++        }
++        if state.color[3] < 5 {
++            state.color = [255, 255, 255, 255];
++        }
++        state.outline = true;
++        state.last_activity = raw.time.unwrap_or(0.0);
++        state.was_enabled = true;
 +    }
 +    if state.pending_button != 0 {
 +        let button = if state.pending_button == 2 { PointerButton::Secondary } else { PointerButton::Primary };
@@ -279,7 +300,6 @@
 +        state.pending_button = 0;
 +        state.click_flash_until = raw.time.unwrap_or(0.0) + 0.18;
 +    }
-+    let bounds = raw.screen_rect.unwrap_or(Rect::from_min_size(Pos2::ZERO, vec2(1000.0, 700.0)));
 +    let touch_count = raw.events.iter().filter(|event| matches!(event, Event::Touch { .. })).count();
 +    if touch_count > 1 {
 +        state.touch_active = false;
