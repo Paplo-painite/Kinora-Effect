@@ -119,7 +119,7 @@
          }
 --- /dev/null
 +++ b/crates/ui-egui/src/virtual_pointer.rs
-@@ -0,0 +1,309 @@
+@@ -0,0 +1,329 @@
 +//! Touch-driven virtual mouse pointer for Android and touch-first displays.
 +use egui::{Color32, Event, Id, Order, PointerButton, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
 +use serde::{Deserialize, Serialize};
