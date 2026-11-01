@@ -90,6 +90,6 @@ Back up projects, remove the older test build if necessary, and install the late
 
 Before opening an issue, confirm that the problem still occurs on the latest release. Include reproducible steps, device model, Android version, application version, screenshots, and error text when available. Use the project’s [Issues page](https://github.com/Paplo-painite/Kinora-Effect/issues).
 
-## Current input model
+## Optional reference pointer
 
-The TP virtual mouse, blue overlay, floating click controls, and loupe have been removed from the current release. Kinora Effect uses normal touch input together with the adjustable workspace scale.
+Kinora Effect supports normal touch input. The v0.16.3 release also includes an optional reference pointer experience. Use **TP** in the top toolbar to access pointer mode, with separate **L** and **R** click controls and a configurable magnifier. Pointer settings include sensitivity, size, opacity, color, outline, acceleration, and other behavior options. The available controls may change between releases; check the [latest release notes](https://github.com/Paplo-painite/Kinora-Effect/releases/latest) if your interface differs.
